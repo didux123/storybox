@@ -133,14 +133,32 @@
 ## Current Status
 
 **Completed:**
-- ✅ Models downloaded locally (Mac)
-- ✅ Models transferred to Pi
+- ✅ Models downloaded locally (Mac) & transferred to Pi
 - ✅ SSH key configured
+- ✅ GitHub repository created: https://github.com/didux123/storybox
+- ✅ Project structure setup (app/, scripts/, tests/, docs/)
 - ✅ Configuration file created (configs/default.yaml)
+- ✅ requirements.txt & constraints.txt created
+- ✅ whisper.cpp compiled for Mac
+- ✅ llama.cpp compiled for Mac
+- ✅ Piper TTS installed via pip
+- ✅ Documentation complete:
+  - README.md with overview
+  - docs/MAC_DEVELOPMENT.md for local dev
+  - docs/RASPBERRY_PI_SETUP.md for Pi setup
+  - test/README.md for testing
+- ✅ Deployment scripts:
+  - scripts/deploy_init.sh (Mac → Pi rsync)
+  - scripts/install_pi.sh (Pi installation automation)
+- ✅ Test scripts created:
+  - test/scripts/test_tts.py (voice generation)
+  - test/scripts/test_stt.sh (speech recognition)
+  - test/scripts/test_llm.sh (story generation)
 
 **In Progress:**
-- 🔄 Project structure setup
+- 🔄 Ready to start implementing core modules
 
 **Next:**
-- Create requirements.txt
-- Install toolchain (whisper.cpp, llama.cpp, Piper)
+- Implement configuration loader (YAML)
+- Implement core wrappers (STT, LLM, TTS)
+- Implement audio input/output modules

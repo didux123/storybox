@@ -96,6 +96,11 @@ Modifier `configs/default.yaml` pour ajuster :
 
 ## Développement
 
+### 📚 Documentation Détaillée
+
+- **[Mac Development Guide](docs/MAC_DEVELOPMENT.md)** - Développement local sur Mac
+- **[Raspberry Pi Setup Guide](docs/RASPBERRY_PI_SETUP.md)** - Installation complète sur Pi
+
 ### Tests locaux (Mac)
 
 ```bash
@@ -104,18 +109,25 @@ export MOCK_GPIO=true
 python -m app.main
 ```
 
+**Note:** whisper.cpp, llama.cpp et Piper doivent être installés localement. Voir `docs/MAC_DEVELOPMENT.md` pour les instructions.
+
 ### Déploiement sur Raspberry Pi
 
 ```bash
-# Premier déploiement
+# Premier déploiement (depuis Mac)
 ./scripts/deploy_init.sh
 
-# Mises à jour via Git
+# Sur le Pi, installer les dépendances
 ssh maxence@<PI_IP>
 cd ~/projects/storybox
+bash scripts/install_pi.sh
+
+# Mises à jour via Git
 git pull --rebase
 sudo systemctl restart storybox
 ```
+
+**Voir `docs/RASPBERRY_PI_SETUP.md` pour le guide complet.**
 
 ## Utilisation
 
