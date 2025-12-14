@@ -156,9 +156,19 @@
   - test/scripts/test_llm.sh (story generation)
 
 **In Progress:**
-- 🔄 Ready to start implementing core modules
+- 🔄 Implementing integration modules (AudioIn, GPIO, State Machine)
+
+**Recently Completed:**
+- ✅ Configuration loader (YAML + env overrides)
+- ✅ Logging system with metrics tracking
+- ✅ TTS wrapper (Piper) with streaming support
+- ✅ STT wrapper (Whisper) with preprocessing
+- ✅ LLM wrapper (Llama) with story plan generation
+- ✅ Complete modules documentation (docs/MODULES.md)
 
 **Next:**
-- Implement configuration loader (YAML)
-- Implement core wrappers (STT, LLM, TTS)
-- Implement audio input/output modules
+- Implement AudioIn module (microphone capture)
+- Implement GPIO handlers (button + LED)
+- Implement state machine
+- Create main orchestrator
+- End-to-end testing
