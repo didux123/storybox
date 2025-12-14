@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.pyc
+.env
+.env.*
+.venv/
+venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Models / weights / audio cache
+models/
+weights/
+voices/
+data/audio/
+cache/
+
+# Build / logs
+build/
+dist/
+logs/

@@ -1,0 +1,118 @@
+# StoryBox Configuration
+
+# Audio settings
+audio:
+  input:
+    device: "default"  # ALSA device name or "default"
+    sample_rate: 16000
+    channels: 1
+    format: "S16_LE"
+    chunk_duration_ms: 40  # 20-40ms frames
+  output:
+    device: "default"
+    sample_rate: 22050
+    channels: 1
+
+# Speech-to-Text (Whisper)
+stt:
+  model_path: "/home/maxence/models/whisper/ggml-small.bin"
+  language: "fr"
+  model_type: "small"  # small or base
+  threads: 4
+
+# Large Language Model (Llama)
+llm:
+  model_path: "/home/maxence/models/llm/Llama-3.2-3B-Instruct-Q4_K_M.gguf"
+  context_tokens: 2048
+  threads: 4
+  n_gpu_layers: 0  # CPU only on Pi
+  temperature: 0.7
+  top_p: 0.9
+  repeat_penalty: 1.1
+
+  # Prompt templates
+  prompts:
+    plan: |
+      Génère un plan de 10 chapitres cohérents sur le thème suivant : {theme}.
+      Chaque chapitre doit contenir :
+      - Un titre court et accrocheur
+      - Un résumé en 1 phrase
+
+      Réponds au format JSON suivant :
+      {{
+        "chapters": [
+          {{"number": 1, "title": "...", "summary": "..."}},
+          ...
+        ]
+      }}
+
+    chapter: |
+      Écris le chapitre n°{chapter_num} intitulé "{chapter_title}".
+
+      Contexte cumulatif des chapitres précédents :
+      {cumulative_context}
+
+      Plan global de l'histoire :
+      {story_plan}
+
+      Consignes :
+      - 150 à 300 mots
+      - Paragraphes courts pour la lecture à voix haute
+      - Cohérent avec le contexte et le plan
+      - Ton narratif adapté à un jeune public
+
+      Écris uniquement le contenu du chapitre, sans répéter le titre.
+
+# Text-to-Speech (Piper)
+tts:
+  model_path: "/home/maxence/models/piper/fr_FR-siwis-medium.onnx"
+  config_path: "/home/maxence/models/piper/fr_FR-siwis-medium.onnx.json"
+  sample_rate: 22050
+  speaker_id: 0
+
+  # Audio post-processing
+  post_processing:
+    noise_gate_threshold: -40  # dB
+    compressor_ratio: 2.5
+    normalize_lufs: -16.0
+
+# GPIO Configuration (Raspberry Pi)
+gpio:
+  button_pin: 17
+  button_pull: "up"  # up or down
+  debounce_ms: 50
+  long_press_duration_s: 3.0
+
+  led_pins:
+    status: 22
+    progress_1: 23
+    progress_2: 24
+
+# State machine timing
+timing:
+  pre_roll_led_ms: 500  # Visual feedback before audio starts
+  max_recording_duration_s: 30
+  audio_buffer_ms: 300
+
+# Logging
+logging:
+  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  log_dir: "/home/maxence/projects/storybox/logs"
+  max_log_size_mb: 50
+  backup_count: 3
+
+  # Metrics to track
+  metrics:
+    - "latency_release_to_audio"
+    - "tokens_per_second"
+    - "model_load_time"
+    - "audio_errors"
+    - "gpio_errors"
+
+# Story generation
+story:
+  num_chapters: 10
+  chapter_min_words: 150
+  chapter_max_words: 300
+  context_summary_sentences: 3  # sentences per chapter in cumulative context
+  streaming_paragraph_tokens: 50  # Generate text in chunks for TTS streaming

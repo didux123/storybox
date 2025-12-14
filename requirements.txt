@@ -1,0 +1,42 @@
+# StoryBox IA - Python Dependencies
+
+# Configuration
+pyyaml>=6.0
+
+# Audio Processing
+sounddevice>=0.4.6
+soundfile>=0.12.1
+numpy>=1.24.0
+scipy>=1.11.0
+pyaudio>=0.2.13
+
+# Python bindings for AI models
+# Note: whisper.cpp, llama.cpp, and Piper need to be compiled separately
+# These are Python wrappers/utilities
+pywhispercpp>=1.0.0  # whisper.cpp Python bindings
+llama-cpp-python>=0.2.0  # llama.cpp Python bindings
+piper-phonemize>=1.1.0  # Piper TTS dependencies
+
+# GPIO (Raspberry Pi only)
+# These will fail on Mac but that's OK - we'll mock them
+gpiozero>=2.0; platform_machine == "aarch64" or platform_machine == "armv7l"
+RPi.GPIO>=0.7.1; platform_machine == "aarch64" or platform_machine == "armv7l"
+
+# Logging and monitoring
+python-json-logger>=2.0.7
+psutil>=5.9.0
+
+# Utilities
+python-dotenv>=1.0.0
+pathlib>=1.0.1
+
+# Testing
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-mock>=3.11.0
+pytest-cov>=4.1.0
+
+# Development
+black>=23.0.0
+flake8>=6.0.0
+mypy>=1.5.0
