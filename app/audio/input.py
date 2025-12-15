@@ -123,8 +123,8 @@ class AudioInput:
             import sounddevice as sd
             self.sd = sd
 
-            # Set default device if specified
-            if self.config.device:
+            # Set default device if specified (ignore "default" string)
+            if self.config.device and self.config.device != "default":
                 self.sd.default.device = self.config.device
 
             # Test device availability
