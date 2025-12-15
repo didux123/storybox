@@ -181,3 +181,7 @@ sudo systemctl restart storybox.service
 - `Expression_besoin.md`: Complete functional and technical requirements (French)
 - `workflow.md`: Detailed deployment workflow and systemd configuration
 - `ssh_config.json`: SSH connection template (credentials in .env)
+- `docs/HARDWARE.md`: Complete hardware setup guide with wiring diagrams and component selection
+- `docs/MODULES.md`: API documentation for all implemented modules
+- `docs/RASPBERRY_PI_SETUP.md`: Software installation and deployment guide for Pi
+- `docs/MAC_DEVELOPMENT.md`: Local development setup with mocks

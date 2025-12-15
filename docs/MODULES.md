@@ -600,4 +600,7 @@ See the following modules (to be implemented):
 4. **app/state/machine.py** - State machine coordination
 5. **app/main.py** - Main orchestrator bringing it all together
 
-For full system integration, see `docs/RASPBERRY_PI_SETUP.md`.
+**Documentation:**
+- `docs/HARDWARE.md` - Hardware setup, wiring diagrams, and component selection
+- `docs/RASPBERRY_PI_SETUP.md` - Complete Pi software installation and deployment
+- `docs/MAC_DEVELOPMENT.md` - Local development with GPIO/audio mocks

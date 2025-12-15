@@ -13,6 +13,8 @@ Complete guide for setting up StoryBox IA on Raspberry Pi 4B.
 - **Button** GPIO push button for hold-to-talk
 - **LEDs** 2-3 LEDs for status indication
 
+**For detailed hardware setup, wiring diagrams, and component recommendations, see [HARDWARE.md](HARDWARE.md).**
+
 ## OS Installation
 
 ### 1. Flash Raspberry Pi OS
