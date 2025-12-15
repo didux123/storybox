@@ -396,11 +396,17 @@ MOCK_GPIO=true pytest tests/test_integration.py -v
 
 ### 🎯 Next Steps to MVP V0
 
-1. **Integration Testing** - Test complete pipeline on Mac with mocks
-2. **Deploy to Pi** - Use `scripts/deploy_init.sh`
-3. **End-to-end Testing** - Test on Pi with real hardware
-4. **Audio Playback** - Implement actual audio playback (currently simulated)
-5. **Volume Control** - Optionally implement rotary encoder module
+1. **Mac Test Interface** - Create simple GUI/CLI for testing on Mac
+   - Voice input (hold spacebar to record)
+   - Display transcription and generated plan
+   - Play generated audio response
+   - No GPIO needed, pure audio pipeline test
+
+2. **Integration Testing** - Test complete pipeline on Mac with mocks
+3. **Deploy to Pi** - Use `scripts/deploy_init.sh`
+4. **End-to-end Testing** - Test on Pi with real hardware
+5. **Audio Playback** - Implement actual audio playback (currently simulated)
+6. **Volume Control** - Optionally implement rotary encoder module
 
 ### 📊 Progress Metrics
 

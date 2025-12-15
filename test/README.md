@@ -1,283 +1,176 @@
-# StoryBox IA - Test Suite
+# StoryBox IA - Mac Test Interface
 
-Scripts et fichiers de test pour valider les composants avant déploiement sur Raspberry Pi.
+Interface de test simple pour tester le pipeline complet sur Mac sans hardware GPIO.
 
-## Structure
-
-```
-test/
-├── README.md              # Ce fichier
-├── scripts/               # Scripts de test
-│   ├── test_tts.py       # Test génération vocale (Piper)
-│   ├── test_stt.sh       # Test transcription (Whisper)
-│   └── test_llm.sh       # Test génération texte (Llama)
-└── audio_samples/         # Fichiers audio générés (gitignored)
-    ├── greeting.wav
-    ├── chapter_intro.wav
-    ├── story_sample.wav
-    ├── error.wav
-    └── processing.wav
-```
-
-## Prérequis
-
-### Sur Mac
-
-1. **Modèles téléchargés** dans `models/` :
-   - `models/whisper/ggml-small.bin`
-   - `models/llm/Llama-3.2-3B-Instruct-Q4_K_M.gguf`
-   - `models/piper/fr_FR-siwis-medium.onnx`
-
-2. **Toolchains compilés** :
-   - whisper.cpp : `/tmp/whisper.cpp/build/bin/whisper-cli`
-   - llama.cpp : `/tmp/llama.cpp/build/bin/llama-cli`
-   - Piper TTS : `pip install piper-tts`
-
-3. **FFmpeg** (pour conversion audio) :
-   ```bash
-   brew install ffmpeg
-   ```
-
-Voir `docs/MAC_DEVELOPMENT.md` pour les instructions complètes.
-
-## Tests Disponibles
-
-### 1. Test TTS (Synthèse Vocale)
-
-Génère des exemples audio avec différents types de messages :
+## Installation
 
 ```bash
-# Depuis la racine du projet
-source .venv/bin/activate
-python test/scripts/test_tts.py
+# Installer les dépendances
+pip install sounddevice pyaudio
+
+# Optionnel: pour le mode clavier (nécessite sudo)
+pip install keyboard
 ```
 
-**Sortie :**
-- `test/audio_samples/greeting.wav` - Message d'accueil
-- `test/audio_samples/chapter_intro.wav` - Intro de chapitre
-- `test/audio_samples/story_sample.wav` - Extrait d'histoire
-- `test/audio_samples/error.wav` - Message d'erreur
-- `test/audio_samples/processing.wav` - Message de traitement
+## Utilisation
 
-**Écouter les résultats :**
-```bash
-# Mac
-afplay test/audio_samples/greeting.wav
+### Mode 1: CLI Simple (Recommandé)
 
-# Tous les fichiers
-for f in test/audio_samples/*.wav; do
-    echo "Playing: $(basename $f)"
-    afplay "$f"
-done
-```
-
-### 2. Test STT (Reconnaissance Vocale)
-
-Génère un fichier audio et le transcrit :
+Mode le plus simple, pas besoin de permissions spéciales:
 
 ```bash
-chmod +x test/scripts/test_stt.sh
-./test/scripts/test_stt.sh
+python test/mac_test_interface.py
 ```
 
-**Ce que fait le script :**
-1. Génère un fichier audio avec `say` (voix française)
-2. Le convertit en WAV 16kHz mono
-3. Transcrit avec whisper.cpp
-4. Compare avec le texte original
+**Instructions:**
+1. Appuie sur ENTRÉE pour commencer l'enregistrement
+2. Parle (ex: "raconte-moi une histoire de pirates")
+3. Appuie sur ENTRÉE pour arrêter
+4. Attends la réponse audio (génération + lecture)
 
-**Exemple de sortie :**
-```
-Original: Raconte-moi une histoire sur des pirates...
-Transcribed: raconte-moi une histoire sur des pirates...
-```
+### Mode 2: Clavier (Hold Space)
 
-### 3. Test LLM (Génération d'Histoire)
-
-Teste la génération de plan d'histoire :
+Mode avec détection de la touche ESPACE (nécessite sudo sur Mac):
 
 ```bash
-chmod +x test/scripts/test_llm.sh
-./test/scripts/test_llm.sh
+sudo python test/mac_test_interface.py
 ```
 
-**Ce que fait le script :**
-- Demande au LLM de générer un plan de 5 chapitres
-- Format JSON avec titres et résumés
-- Thème : pirates et trésor
+**Instructions:**
+1. Maintiens ESPACE enfoncé pour enregistrer
+2. Parle pendant l'enregistrement
+3. Relâche ESPACE pour arrêter et traiter
+4. Écoute la réponse audio
 
-**Exemple de sortie :**
-```json
-{
-  "chapters": [
-    {
-      "number": 1,
-      "title": "Le Vieux Parchemin",
-      "summary": "Lucas découvre une carte au trésor dans le grenier."
-    },
-    ...
-  ]
-}
+## Ce que fait l'interface
+
+### Pipeline complet testé:
+
+1. **Audio Input** → Enregistrement micro (sounddevice)
+2. **STT** → Transcription avec Whisper
+3. **Planner** → Génération plan d'histoire (3 chapitres pour test)
+4. **StoryGen** → Génération du chapitre 1
+5. **TTS** → Synthèse audio avec Piper
+6. **Audio Output** → Lecture audio (PyAudio ou afplay)
+
+### Exemple de sortie:
+
+```
+🎙️  READY TO TEST (CLI Mode)
+Press ENTER to start recording...
+
+🔴 RECORDING... (speak now, press ENTER when done)
+
+⏹️  Recording stopped
+
+✅ Captured 3.2s audio
+
+📝 Step 1/4: Transcribing audio...
+✅ Transcription: "raconte-moi une histoire de pirates"
+
+📋 Step 2/4: Generating story plan...
+✅ Generated plan: pirates
+
+Chapters:
+  1. Le départ
+     → Lucas trouve une vieille carte au trésor.
+  2. L'île mystérieuse
+     → Le bateau arrive sur une île inconnue.
+  3. Le trésor caché
+     → Les pirates découvrent le coffre.
+
+📖 Step 3/4: Generating chapter 1...
+✅ Chapter 1 generated (145 words)
+
+Text preview:
+  Lucas était un jeune garçon qui aimait les aventures...
+
+🔊 Step 4/4: Synthesizing and playing audio...
+✅ Generated 12.3s audio
+
+🎵 Playing audio...
+
+✨ Pipeline complete!
 ```
 
-## Pipeline Complet (End-to-End)
+## Dépannage
 
-Pour tester le pipeline complet en simulation :
+### Erreur: "No microphone detected"
 
 ```bash
-# 1. Générer audio de test (STT input)
-./test/scripts/test_stt.sh
+# Lister les devices audio disponibles
+python -c "import sounddevice; print(sounddevice.query_devices())"
 
-# 2. Générer plan avec LLM
-./test/scripts/test_llm.sh
-
-# 3. Générer narration avec TTS
-python test/scripts/test_tts.py
-
-# 4. Vérifier tous les fichiers audio
-ls -lh test/audio_samples/
+# Vérifier que le micro fonctionne
+python -m app.audio.input
 ```
 
-## Validation Qualité
+### Erreur: "PyAudio not found"
 
-### Qualité TTS
+L'interface utilisera automatiquement `afplay` (macOS) à la place.
 
-Écouter les fichiers générés et vérifier :
-- ✅ Prononciation correcte des mots français
-- ✅ Intonation naturelle
-- ✅ Pas de distorsion audio
-- ✅ Volume adéquat
-- ✅ Pas de coupures entre phrases
-
-Si qualité insuffisante :
-- Essayer une autre voix Piper (voir modèles disponibles)
-- Ajuster post-processing dans `configs/default.yaml`
-
-### Qualité STT
-
-Vérifier la transcription :
-- ✅ Mots correctement reconnus
-- ✅ Pas de fautes majeures
-- ✅ Phrases cohérentes
-
-Si précision insuffisante :
-- Tester avec modèle `base` (plus rapide, moins précis)
-- Vérifier qualité audio d'entrée (16kHz, mono, peu de bruit)
-
-### Qualité LLM
-
-Vérifier la génération :
-- ✅ Plan cohérent avec le thème
-- ✅ Chapitres logiques et enchaînés
-- ✅ Format JSON valide
-- ✅ Titres accrocheurs
-- ✅ Résumés pertinents
-
-Si qualité insuffisante :
-- Ajuster température dans config (0.6-0.8)
-- Modifier les prompts dans `configs/default.yaml`
-- Augmenter nombre de tokens générés
-
-## Benchmarks (Mac vs Pi)
-
-### Mac M1/M2 (Référence)
-
-| Test | Durée | Notes |
-|------|-------|-------|
-| TTS (1 phrase) | ~0.5s | Très rapide |
-| STT (5s audio) | ~2-3s | ~2x temps réel |
-| LLM (plan 5 chapitres) | ~10-15s | 20-30 tok/s |
-
-### Raspberry Pi 4B 8GB (Estimation)
-
-| Test | Durée | Notes |
-|------|-------|-------|
-| TTS (1 phrase) | ~1-2s | Acceptable |
-| STT (5s audio) | ~10s | ~0.5x temps réel |
-| LLM (plan 5 chapitres) | ~60-90s | 3-5 tok/s |
-
-**Total latency (release → audio) sur Pi : 8-12s attendu**
-
-## Debugging
-
-### TTS ne génère pas d'audio
+Ou installer PyAudio:
 
 ```bash
-# Vérifier installation Piper
-pip list | grep piper
-
-# Tester manuellement
-echo "Test" | piper -m models/piper/fr_FR-siwis-medium.onnx -f test.wav
-
-# Vérifier modèle existe
-ls -lh models/piper/
+# Sur Mac
+brew install portaudio
+pip install pyaudio
 ```
 
-### STT transcription vide
+### Erreur: "keyboard requires sudo"
+
+Utilise le mode CLI simple sans keyboard:
+- L'interface détectera automatiquement et utilisera `input()` au lieu de `keyboard`
+- Pas besoin de sudo dans ce mode
+
+### Audio coupé ou de mauvaise qualité
+
+Vérifie le niveau du micro dans les Préférences Système → Son → Entrée.
+
+### LLM/STT trop lent
+
+Première utilisation: les modèles doivent être chargés en RAM (~2-3 GB).
+Les générations suivantes seront plus rapides.
+
+## Tests unitaires des modules
+
+Chaque module peut être testé indépendamment:
 
 ```bash
-# Vérifier format audio (doit être 16kHz mono WAV)
-ffprobe test/audio_samples/test_input_pirates.wav
+# Test audio input
+MOCK_AUDIO=false python -m app.audio.input
 
-# Tester avec fichier minimal
-echo "Bonjour" | \
-  piper -m models/piper/fr_FR-siwis-medium.onnx -f test_minimal.wav
+# Test STT (nécessite audio de test)
+python -m app.stt.whisper_stt
 
-/tmp/whisper.cpp/build/bin/whisper-cli \
-  -m models/whisper/ggml-small.bin \
-  -l fr \
-  test_minimal.wav
+# Test LLM Planner
+python -m app.llm.planner
+
+# Test LLM StoryGen
+python -m app.llm.story_gen
+
+# Test TTS
+python -m app.tts.piper_tts
+
+# Test GPIO (mode mock)
+MOCK_GPIO=true python -m app.gpio.button
+MOCK_GPIO=true python -m app.gpio.led
 ```
 
-### LLM génération lente
+## Limites du test sur Mac
 
-```bash
-# Réduire contexte
-/tmp/llama.cpp/build/bin/llama-cli \
-  -m models/llm/Llama-3.2-3B-Instruct-Q4_K_M.gguf \
-  -n 100 \
-  -c 512 \
-  -t 4 \
-  -p "Test court"
-```
+- **Pas de GPIO** → LEDs et boutons simulés (mode mock)
+- **Performance** → Mac plus rapide que Pi, les timings seront différents
+- **Audio** → Device différent de celui du Pi
 
-## Nettoyage
+Pour un test complet, déployer sur le Raspberry Pi.
 
-Pour supprimer les fichiers audio générés :
+## Prochaines étapes
 
-```bash
-rm -rf test/audio_samples/*.wav
-```
+Une fois l'interface testée sur Mac:
 
-Les fichiers audio ne sont PAS versionnés dans Git (.gitignore).
+1. **Deploy to Pi**: `./scripts/deploy_init.sh`
+2. **Install on Pi**: `ssh pi@192.168.68.120 'cd ~/projects/storybox && bash scripts/install_pi.sh'`
+3. **Run on Pi**: Test avec hardware GPIO réel
 
-## CI/CD (Future)
-
-Pour automatiser les tests :
-
-```yaml
-# .github/workflows/test.yml (exemple)
-name: Test AI Components
-on: [push]
-jobs:
-  test:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v2
-      - name: Setup Python
-        uses: actions/setup-python@v2
-      - name: Install dependencies
-        run: pip install -r requirements.txt
-      - name: Run TTS tests
-        run: python test/scripts/test_tts.py
-```
-
-## Prochaines Étapes
-
-Après validation des tests Mac :
-1. Déployer sur Pi : `./scripts/deploy_init.sh`
-2. Installer sur Pi : `bash scripts/install_pi.sh`
-3. Re-tester sur Pi avec benchmarks réels
-4. Ajuster configs pour performance Pi
-
-Voir `docs/RASPBERRY_PI_SETUP.md` pour le guide complet.
+Voir `docs/RASPBERRY_PI_SETUP.md` pour plus de détails.
