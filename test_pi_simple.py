@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
 """
-Test Simple pour Raspberry Pi: Vosk STT + Gemini LLM
+Test Simple pour Raspberry Pi: Vosk STT + Gemini LLM avec Bouton GPIO
 
 Test basique du pipeline:
-1. Enregistre 5 secondes d'audio
-2. Transcrit avec Vosk
-3. Génère une histoire avec Gemini (via Celeste)
-4. Affiche l'histoire dans le terminal
+1. Appuyer sur le bouton pour enregistrer
+2. Relâcher pour lancer la transcription (Vosk)
+3. Génération d'histoire (Gemini via Celeste)
+4. Affichage de l'histoire dans le terminal
 
 Prérequis:
     - Vosk model installé dans /home/maxence/models/vosk/
     - Celeste AI installé
     - Variable GOOGLE_API_KEY dans .env
+    - Bouton GPIO sur pin 17
 
 Usage sur Raspberry Pi:
     python3 test_pi_simple.py
@@ -23,7 +24,8 @@ Date: 2024-12-19
 import asyncio
 import sys
 import time
-import subprocess
+import wave
+import threading
 from pathlib import Path
 
 # Add parent directory to path
@@ -33,82 +35,170 @@ from app.stt.vosk_stt import VoskSTT
 from app.llm.celeste_llm import CelesteLLM
 from app.utils.config import get_config
 
+# Import GPIO libraries
+try:
+    from gpiozero import Button
+    import pyaudio
+    GPIO_AVAILABLE = True
+except ImportError:
+    GPIO_AVAILABLE = False
+    print("⚠️  GPIO/PyAudio non disponible - mode simulation")
 
-# Configuration audio
+
+# Configuration
 AUDIO_FILE = "/tmp/storybox_recording.wav"
 AUDIO_INPUT = "plughw:1,0"  # USB mic
-RECORD_DURATION = 5  # secondes
+BUTTON_PIN = 17
+SAMPLE_RATE = 16000
+CHANNELS = 1
+CHUNK = 1024
 
 
-def record_audio(duration: int = 5) -> bool:
-    """
-    Enregistre l'audio depuis le micro USB
+class AudioRecorder:
+    """Enregistreur audio en temps réel avec contrôle GPIO"""
 
-    Args:
-        duration: Durée d'enregistrement en secondes
+    def __init__(self, output_file: str, device_name: str = "plughw:1,0"):
+        self.output_file = output_file
+        self.device_name = device_name
+        self.is_recording = False
+        self.frames = []
+        self.audio = None
+        self.stream = None
 
-    Returns:
-        True si l'enregistrement a réussi
-    """
-    print(f"🔴 ENREGISTREMENT ({duration}s)...")
-    print("   Parlez maintenant!")
-    print()
+    def start_recording(self):
+        """Démarre l'enregistrement"""
+        self.is_recording = True
+        self.frames = []
 
-    try:
-        cmd = [
-            "arecord",
-            "-D", AUDIO_INPUT,
-            "-f", "S16_LE",
-            "-r", "16000",
-            "-c", "1",
-            "-d", str(duration),
-            AUDIO_FILE
-        ]
+        # Initialiser PyAudio
+        self.audio = pyaudio.PyAudio()
 
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            timeout=duration + 2
+        # Trouver l'index du device
+        device_index = None
+        for i in range(self.audio.get_device_count()):
+            info = self.audio.get_device_info_by_index(i)
+            if self.device_name in info.get('name', ''):
+                device_index = i
+                break
+
+        # Ouvrir le stream
+        self.stream = self.audio.open(
+            format=pyaudio.paInt16,
+            channels=CHANNELS,
+            rate=SAMPLE_RATE,
+            input=True,
+            input_device_index=device_index,
+            frames_per_buffer=CHUNK
         )
 
-        if result.returncode == 0:
-            print("⏹️  Enregistrement terminé")
-            print()
-            return True
-        else:
-            print(f"❌ Erreur d'enregistrement: {result.stderr.decode()}")
-            return False
+        # Thread d'enregistrement
+        self.record_thread = threading.Thread(target=self._record_loop)
+        self.record_thread.start()
 
-    except Exception as e:
-        print(f"❌ Erreur: {e}")
+    def _record_loop(self):
+        """Boucle d'enregistrement"""
+        while self.is_recording:
+            try:
+                data = self.stream.read(CHUNK, exception_on_overflow=False)
+                self.frames.append(data)
+            except Exception as e:
+                print(f"Erreur enregistrement: {e}")
+                break
+
+    def stop_recording(self):
+        """Arrête l'enregistrement et sauvegarde"""
+        self.is_recording = False
+
+        if self.record_thread:
+            self.record_thread.join()
+
+        # Fermer le stream
+        if self.stream:
+            self.stream.stop_stream()
+            self.stream.close()
+
+        if self.audio:
+            self.audio.terminate()
+
+        # Sauvegarder le fichier WAV
+        if self.frames:
+            wf = wave.open(self.output_file, 'wb')
+            wf.setnchannels(CHANNELS)
+            wf.setsampwidth(self.audio.get_sample_size(pyaudio.paInt16))
+            wf.setframerate(SAMPLE_RATE)
+            wf.writeframes(b''.join(self.frames))
+            wf.close()
+            return True
         return False
 
 
 async def test_pipeline():
-    """Test complet du pipeline"""
+    """Test complet du pipeline avec bouton GPIO"""
 
     print("=" * 70)
-    print("🎤 TEST SIMPLE - RASPBERRY PI")
+    print("🎤 TEST SIMPLE - RASPBERRY PI (avec bouton GPIO)")
     print("=" * 70)
     print()
     print("Pipeline:")
-    print("  1. Enregistrement audio (5 secondes)")
-    print("  2. Transcription (Vosk)")
+    print("  1. Appuyez sur le bouton pour enregistrer")
+    print("  2. Relâchez pour lancer la transcription (Vosk)")
     print("  3. Génération d'histoire (Gemini via Celeste)")
     print("  4. Affichage de l'histoire")
     print()
     print("=" * 70)
     print()
 
-    # ÉTAPE 1: Enregistrement
+    if not GPIO_AVAILABLE:
+        print("❌ GPIO/PyAudio requis sur Raspberry Pi")
+        print("   Installez: pip install gpiozero RPi.GPIO pyaudio")
+        return
+
+    # ÉTAPE 1: Attendre le bouton et enregistrer
     print("─" * 70)
     print("📝 ÉTAPE 1/3: ENREGISTREMENT")
     print("─" * 70)
     print()
+    print("🔵 Appuyez sur le bouton (GPIO pin 17) pour parler...")
+    print()
 
-    if not record_audio(RECORD_DURATION):
-        print("❌ Échec de l'enregistrement")
+    # Créer le bouton
+    button = Button(BUTTON_PIN, pull_up=True, bounce_time=0.1)
+    recorder = AudioRecorder(AUDIO_FILE, AUDIO_INPUT)
+
+    # Variable pour suivre l'état
+    recording_started = False
+    button_pressed = threading.Event()
+
+    def on_button_press():
+        nonlocal recording_started
+        if not recording_started:
+            print("🔴 ENREGISTREMENT EN COURS...")
+            print("   (Relâchez le bouton quand vous avez fini)")
+            print()
+            recorder.start_recording()
+            recording_started = True
+
+    def on_button_release():
+        if recording_started:
+            button_pressed.set()
+
+    # Attacher les callbacks
+    button.when_pressed = on_button_press
+    button.when_released = on_button_release
+
+    # Attendre que le bouton soit relâché
+    button_pressed.wait()
+
+    # Arrêter l'enregistrement
+    print("⏹️  Enregistrement terminé")
+    print()
+
+    if not recorder.stop_recording():
+        print("❌ Échec de l'enregistrement (aucune donnée)")
         return
+
+    # Nettoyer le bouton
+    button.close()
 
     # ÉTAPE 2: Transcription avec Vosk
     print("─" * 70)
