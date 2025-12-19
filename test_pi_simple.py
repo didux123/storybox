@@ -26,6 +26,8 @@ import sys
 import time
 import wave
 import threading
+import json
+from datetime import datetime
 from pathlib import Path
 
 # Add parent directory to path
@@ -52,6 +54,42 @@ BUTTON_PIN = 17
 SAMPLE_RATE = 16000
 CHANNELS = 1
 CHUNK = 1024
+LOG_DIR = Path.home() / "storybox" / "logs"
+LOG_FILE = LOG_DIR / "stories.log"
+
+
+def log_session(transcription: str, story: str, stt_time: float, llm_time: float, total_time: float):
+    """
+    Log une session avec timestamp, transcription et histoire générée
+
+    Args:
+        transcription: Texte transcrit par Vosk
+        story: Histoire générée par Gemini
+        stt_time: Temps de transcription (s)
+        llm_time: Temps de génération (s)
+        total_time: Temps total (s)
+    """
+    # Créer le répertoire de logs si nécessaire
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Créer l'entrée de log
+    log_entry = {
+        "timestamp": datetime.now().isoformat(),
+        "transcription": transcription,
+        "story": story,
+        "timing": {
+            "stt_seconds": round(stt_time, 2),
+            "llm_seconds": round(llm_time, 2),
+            "total_seconds": round(total_time, 2)
+        }
+    }
+
+    # Écrire dans le fichier de log (mode append)
+    with open(LOG_FILE, 'a', encoding='utf-8') as f:
+        f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
+
+    print(f"📝 Session loggée dans: {LOG_FILE}")
+    print()
 
 
 class AudioRecorder:
@@ -309,6 +347,10 @@ Histoire:"""
         print("=" * 70)
         print()
 
+        # Logger la session
+        total_time = time.time() - start_stt
+        log_session(transcription, response, stt_time, llm_time, total_time)
+
     except Exception as e:
         print(f"❌ Erreur LLM: {e}")
         import traceback
@@ -316,8 +358,6 @@ Histoire:"""
         return
 
     # RÉSUMÉ
-    total_time = time.time() - start_stt
-
     print("✅ TEST TERMINÉ!")
     print()
     print(f"⏱️  TEMPS TOTAL: {total_time:.1f}s")
