@@ -4,184 +4,227 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**StoryBox IA** is an autonomous AI-powered storytelling device designed to run locally on Raspberry Pi 4B. The device uses a hold-to-talk button interface to:
+**StoryBox IA** is an AI-powered interactive storytelling device for Raspberry Pi 4B. The device uses a hold-to-talk button interface to:
 1. Record voice input (French)
-2. Transcribe the request using STT
-3. Generate a 10-chapter story plan using a local LLM (3B quantized model)
-4. Stream narration using TTS with LED status indicators
+2. Transcribe the request using cloud STT
+3. Generate story plan and chapters using cloud LLM (Celeste AI)
+4. Stream narration using TTS (coming soon with Celeste TTS)
 
-**Key Constraint**: Fully offline operation with no network dependencies in production.
+**Key Feature**: Cloud-based AI with multi-provider support via Celeste AI library.
 
-## Architecture Components
+## Current Architecture (Cloud API - main branch)
 
-### Core Modules (planned structure)
-- **AudioIn**: Captures mono PCM 16kHz audio while button is held (no VAD)
-- **STT**: French speech transcription via whisper.cpp (small/base models)
-- **Planner**: Generates coherent 10-chapter story outline via LLM
-- **StoryGen**: Chapter-by-chapter generation with cumulative context streaming
-- **TTS**: Real-time narration via Piper (French voices)
-- **State/LED**: State machine managing device states (Idle, Listening, Processing, Narrating, Error)
-- **Control**: GPIO button handling (hold, short press for pause, 3s long press to stop)
-- **Metrics/Logs**: Latency tracking, token/sec metrics, log rotation (≤50MB)
+### Core Stack
+- **STT**: Google Speech Recognition (temporary solution)
+  - Free, fast (~2s transcription)
+  - Will migrate to Celeste STT when available
+- **LLM**: Celeste AI unified library
+  - Supports OpenAI, Anthropic, Google, Mistral, xAI, DeepSeek, Groq
+  - Zero lock-in: switch providers by changing model ID
+  - Async/await for better performance
+- **TTS**: Placeholder for Celeste TTS via Gradio (coming soon)
+- **GPIO**: Button and LED control (Raspberry Pi only)
+- **State Machine**: Manages device states and pipeline flow
 
-### Audio Pipeline
-- **Input**: PCM mono 16kHz, 20-40ms frames
-- **Output**: 22.05kHz/16-bit via Piper TTS
-- **Storage**: Prioritize RAM, use ext4 if necessary (minimize SD card writes)
+### File Structure (Cloud Mode)
+```
+app/
+├── llm/
+│   ├── celeste_llm.py       # Cloud LLM via Celeste
+│   └── __init__.py
+├── stt/
+│   ├── system_dictation.py  # Google Speech Recognition
+│   └── __init__.py
+├── tts/                      # TTS module (to be implemented)
+│   └── __init__.py
+├── gpio/                     # GPIO handlers (keep for Pi)
+│   ├── button.py
+│   ├── led.py
+│   └── __init__.py
+├── state/                    # State machine (keep)
+│   ├── machine.py
+│   └── __init__.py
+├── utils/                    # Config, logging (keep)
+│   ├── config.py
+│   ├── logger.py
+│   └── __init__.py
+└── main.py                   # Main orchestrator
 
-### Models (NOT versioned in Git)
-Located in `~/models/` on the Pi:
-- **LLM**: 3B GGUF Q4_K_M (e.g., Llama-3.2-3B-Instruct)
-- **Whisper**: small/base FR models
-- **Piper**: French voice models
+test/
+└── test_cloud_pipeline.py    # Interactive cloud test
+
+docs/
+└── legacy/                   # Local AI docs (deprecated)
+    ├── README.md
+    ├── HARDWARE.md
+    ├── MAC_DEVELOPMENT.md
+    ├── MODULES.md
+    └── RASPBERRY_PI_SETUP.md
+```
 
 ## Development Workflow
 
-### Local Development (Mac)
-- Develop and test with simulated audio (WAV files)
-- GPIO features are Pi-only, use mocks for local testing
-- Same Python version and dependencies as Pi (see requirements.txt)
+### Local Development (Mac/Linux)
+1. Install dependencies:
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements.txt
+   ```
+
+2. Configure API keys in `.env`:
+   ```env
+   OPENAI_API_KEY=sk-your-key-here
+   LLM_MODEL_PATH=gpt-4o-mini
+   ```
+
+3. Test the pipeline:
+   ```bash
+   python test/test_cloud_pipeline.py
+   ```
 
 ### Deployment to Raspberry Pi
-1. **Initial deployment**: Use `scripts/deploy_init.sh` (rsync-based)
-2. **Ongoing updates**: Git-based sync via `git pull` on Pi
-3. **Models**: Deploy separately via USB/SSD/rsync (never via Git)
+1. Ensure internet connectivity on Pi (required for cloud APIs)
+2. Clone repo and install dependencies
+3. Configure `.env` with API keys
+4. Run tests to verify functionality
+5. Set up systemd service for production (optional)
 
 ### Configuration
-- **Environment**: `.env` file (excluded from Git) for secrets and paths
-- **Config**: `configs/default.yaml` for model paths, GPIO pins, ALSA devices
-- **SSH**: Connection config in `ssh_config.json` (template only, credentials in .env)
+- **`.env`**: API keys, model selection, paths (NOT versioned in Git)
+- **`configs/default.yaml`**: GPIO pins, audio devices, system settings
+- Environment variables override YAML settings
 
 ## Key Technical Details
 
-### Latency Target
-- ≤10s from button release to first audio output
-- Visual pre-roll on LED to manage perceived latency
+### Celeste LLM Integration
+The `celeste_llm.py` module wraps the Celeste AI library:
+- Supports async/await for concurrent operations
+- Generates story plans (10 chapters) as structured JSON
+- Generates individual chapters with cumulative context
+- Model switching via config (no code changes needed)
 
-### Streaming & Backpressure
-- StoryGen produces text by paragraphs
-- TTS consumes continuously with auto-adjusted cadence
-- Buffer management to prevent overruns
+Example usage:
+```python
+from app.llm.celeste_llm import CelesteLLM
+
+llm = CelesteLLM(config.llm)
+plan = await llm.generate_story_plan("pirates et trésor", num_chapters=10)
+chapter1 = await llm.generate_chapter(plan, chapter_num=1)
+```
+
+### System Dictation (Temporary STT)
+Uses `SpeechRecognition` library with Google Speech API:
+- Free, no API key needed (uses public endpoint)
+- Fast transcription (~2s)
+- Requires internet connection
+- Will be replaced by Celeste STT when available
 
 ### Prompts
 **Plan generation**:
 ```
-Génère un plan de 10 chapitres cohérents sur [thème].
-Chaque chapitre : Titre + 1 phrase de résumé.
-Style : [optionnel]
+Génère un plan de {num_chapters} chapitres cohérents sur le thème suivant : {theme}.
+
+Chaque chapitre doit contenir :
+- Un titre court et accrocheur
+- Un résumé en 1 phrase
+
+Réponds UNIQUEMENT au format JSON suivant :
+{
+  "chapters": [
+    {"number": 1, "title": "...", "summary": "..."},
+    ...
+  ]
+}
 ```
 
 **Chapter generation**:
 ```
-Écris le chapitre n°, 150–300 mots, cohérent avec :
-* Contexte cumulatif : [résumés précédents]
-* Plan : [chapitres]
-Ton narratif : [optionnel]
-Paragraphes courts.
+Écris le chapitre {chapter_num} intitulé "{chapter_title}".
+
+Contexte cumulatif des chapitres précédents :
+{cumulative_context}
+
+Plan global de l'histoire :
+{story_plan}
+
+Consignes :
+- {min_words} à {max_words} mots
+- Paragraphes courts pour la lecture à voix haute
+- Cohérent avec le contexte et le plan
+- Ton narratif adapté à un jeune public
+
+Écris UNIQUEMENT le contenu du chapitre, sans répéter le titre.
 ```
 
-### Context Management
-- Cumulative summaries: 2-3 sentences per chapter
-- Target size: ~1-2k tokens to fit in context window
+### Provider Switching
+Change provider by updating `.env`:
+```env
+# OpenAI
+LLM_MODEL_PATH=gpt-4o-mini
 
-## Raspberry Pi Setup
+# Anthropic
+LLM_MODEL_PATH=claude-3-5-sonnet-20241022
 
-### System Dependencies
+# Google
+LLM_MODEL_PATH=gemini-2.0-flash
+
+# Mistral
+LLM_MODEL_PATH=mistral-large-2411
+```
+
+No code changes required!
+
+## Testing
+
+### Quick Test (Development)
 ```bash
-sudo apt update && sudo apt full-upgrade -y
-sudo apt install -y \
-  python3 python3-venv python3-pip git cmake build-essential \
-  libsndfile1 portaudio19-dev sox alsa-utils
+python test/test_cloud_pipeline.py
 ```
 
-### Virtual Environment
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt -c constraints.txt
-```
+This tests:
+1. Audio recording (5 seconds)
+2. Transcription via Google Speech
+3. Story plan generation
+4. First chapter generation
+5. Display results
 
-### Systemd Service
-Location: `/etc/systemd/system/storybox.service`
-- User: Non-root user with audio/gpio supplementary groups
-- Restart: `on-failure` with 2s delay
-- Environment: Loaded from `.env` file
-
-Enable and start:
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable storybox
-sudo systemctl start storybox
-sudo systemctl status storybox
-```
-
-### Update Workflow
-```bash
-cd ~/projects/storybox
-git fetch --all
-git pull --rebase
-sudo systemctl restart storybox.service
-```
-
-## Hardware Configuration
-
-### Audio
-- **Input**: USB microphone (class-compliant) OR I2S MEMS mic (INMP441)
-- **Output**: USB audio + amplifier OR I2S DAC/AMP HAT
-- Test input: `arecord -f S16_LE -r 16000 -c 1 test.wav`
-- List devices: `arecord -l`
-
-### GPIO (gpiozero or RPi.GPIO)
-- Button with pull-up/pull-down and software debounce
-- LEDs for state indication (recommended pins: 22, 23, 24)
-- Default button pin: 17
-
-### Storage Strategy
-- microSD 64GB for OS and code (Phase 1)
-- Optional: USB 3.2 SSD for models (Phase 2)
-- Minimize writes: log rotation, RAM caching, disable/use zram for swap
-
-## Testing & Validation
-
-### Functional Tests
-- Hold-to-talk → recording cycle
-- Release → plan generation → streaming narration
-- Pause/resume on short press
-- LED state transitions
-- Long press (≥3s) clean shutdown
-
-### Performance Metrics
-- Measure: button release → first audio latency
-- Log: tokens/sec, model load times, audio/GPIO errors
-- Target: 30 consecutive cycles without crash
-
-### Quality Checks
-- Chapter continuity validation
-- Prompt tuning based on narrative coherence
-- USB audio reconnection handling
-
-## Roadmap
-
-- **v0**: Basic hold-to-talk, STT → Plan → StoryGen → TTS pipeline
-- **v1**: Streaming refinement, LED pre-roll, pause/resume, log rotation, metrics
-- **v2**: SSD for models, thermal/thread tuning
-- **v3**: Optional Docker arm64 image (mapping `/dev/snd`, `/dev/gpiomem`)
+### Integration Testing
+- GPIO: Use actual Pi hardware or mocks (set `MOCK_GPIO=true`)
+- Audio: Test with real microphone and speaker
+- APIs: Ensure internet connectivity and valid API keys
 
 ## Important Notes
 
-- **Never commit models or audio data** - only code and configuration
-- **Security**: Use SSH keys (ed25519), no password auth, `.env` for secrets
-- **SD card longevity**: Rotate logs, limit disk writes, consider SSD for models
-- **TTS quality**: Test multiple Piper FR voices, apply light post-processing (noise gate, compression)
-- **Offline operation**: All inference local, no network dependencies in production
-- **Thermal management**: Ensure adequate cooling (heatsink/fan) for sustained LLM inference
+- **Never commit API keys** - use `.env` file (excluded from Git)
+- **Internet required**: Cloud APIs need network connectivity
+- **API costs**: Monitor usage (GPT-4o-mini is cheap, ~$0.15/1M input tokens)
+- **Local mode**: Available in `local_storybox` branch (see `docs/legacy/`)
+- **TTS pending**: Waiting for Celeste TTS release via Gradio
 
 ## Reference Documents
 
-- `Expression_besoin.md`: Complete functional and technical requirements (French)
-- `workflow.md`: Detailed deployment workflow and systemd configuration
-- `ssh_config.json`: SSH connection template (credentials in .env)
-- `docs/HARDWARE.md`: Complete hardware setup guide with wiring diagrams and component selection
-- `docs/MODULES.md`: API documentation for all implemented modules
-- `docs/RASPBERRY_PI_SETUP.md`: Software installation and deployment guide for Pi
-- `docs/MAC_DEVELOPMENT.md`: Local development setup with mocks
+- **README.md**: Main project documentation (cloud mode)
+- **QUICKSTART.md**: Quick start guide for cloud setup
+- **Expression_besoin.md**: Complete functional requirements (French)
+- **docs/legacy/**: Local AI mode documentation (deprecated)
+
+## Branches
+
+- **main**: Cloud API mode (current)
+- **local_storybox**: Local AI mode (Whisper/TinyLlama/Piper)
+
+To switch to local mode:
+```bash
+git checkout local_storybox
+```
+
+## Migration Notes
+
+The project transitioned from local AI (Whisper/TinyLlama/Piper) to cloud APIs for:
+- **Performance**: ~10s total (vs ~33s local)
+- **Quality**: Better models (GPT-4, Claude, Gemini vs quantized 1B model)
+- **Flexibility**: Easy provider switching
+- **Development**: Simpler testing and iteration
+
+Local implementation is preserved in `local_storybox` branch and `docs/legacy/` for reference.

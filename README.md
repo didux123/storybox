@@ -1,191 +1,236 @@
 # StoryBox IA
 
-Dispositif autonome d'histoires générées par IA pour Raspberry Pi 4B.
+> Dispositif interactif de génération d'histoires par IA pour Raspberry Pi 4B
 
-## Description
+## 🎯 Description
 
-StoryBox IA est un projet qui transforme un Raspberry Pi en conteur interactif. L'utilisateur maintient un bouton pour dicter un thème, et le système génère et narre une histoire complète en 10 chapitres, entièrement hors ligne.
+StoryBox IA transforme un Raspberry Pi en conteur interactif alimenté par des IA cloud de dernière génération. L'utilisateur maintient un bouton pour dicter un thème, et le système génère une histoire captivante narrée automatiquement.
 
-**Caractéristiques :**
+**Caractéristiques principales :**
 - 🎤 Entrée vocale française (hold-to-talk)
-- 🤖 Génération d'histoires via LLM local (3B quantifié)
-- 🔊 Narration TTS en streaming
+- 🤖 Génération d'histoires via LLM cloud (GPT-4, Claude, Gemini, etc.)
+- 🔊 Narration TTS en streaming (à venir avec Celeste TTS)
 - 💡 Indicateurs LED d'état
-- 📴 Fonctionnement 100% offline
+- 🌐 Architecture cloud flexible avec multi-providers
 
-## Architecture
+## 🏗️ Architecture Cloud (main branch)
 
 ```
-Voice Input → STT (Whisper) → Planner (LLM) → StoryGen (LLM) → TTS (Piper) → Audio Output
+Voice Input → STT (Google Speech) → Celeste LLM → [TTS - coming soon] → Audio Output
               ↓
           Button (GPIO) → State Machine → LED Indicators
 ```
 
-## Prérequis
+**Stack technique actuelle :**
+- **STT**: Google Speech Recognition (gratuit, temporaire)
+- **LLM**: [Celeste AI](https://github.com/withceleste/celeste-python) - Unified API supportant:
+  - OpenAI (GPT-4o, GPT-4o-mini)
+  - Anthropic (Claude 3.5 Sonnet)
+  - Google (Gemini 2.0 Flash)
+  - Mistral, xAI, DeepSeek, Groq, etc.
+- **TTS**: En attente de Celeste TTS via Gradio (release prochaine)
 
-### Matériel
-- Raspberry Pi 4B (4-8 GB RAM)
-- Carte microSD 64 GB
-- Micro USB ou interface audio USB
-- Haut-parleur USB ou HAT audio I2S
-- Bouton poussoir GPIO
-- LED(s) pour indicateurs d'état
+**Avantages du cloud :**
+- ⚡ Latence réduite : ~10s (vs ~33s en local)
+- 🎯 Meilleure qualité des modèles
+- 🔄 Changement de provider instantané
+- 🚀 Déploiement simplifié
 
-### Logiciel
-- Raspberry Pi OS 64-bit Lite (Bookworm)
-- Python 3.10+
-- whisper.cpp (compilé)
-- llama.cpp (compilé)
-- Piper TTS
+## 📦 Mode Local (deprecated)
 
-## Installation
+L'implémentation locale avec Whisper/TinyLlama/Piper est disponible dans la branche `local_storybox` :
+
+```bash
+git checkout local_storybox
+```
+
+Voir `docs/legacy/` pour la documentation du mode local.
+
+## 🚀 Démarrage Rapide
 
 ### 1. Cloner le repository
 
 ```bash
-git clone <repository_url>
+git clone https://github.com/didux123/storybox.git
 cd storybox
 ```
 
-### 2. Installer les dépendances système (Raspberry Pi)
-
-```bash
-sudo apt update && sudo apt full-upgrade -y
-sudo apt install -y \
-  python3 python3-venv python3-pip git cmake build-essential \
-  libsndfile1 portaudio19-dev sox alsa-utils
-```
-
-### 3. Créer l'environnement virtuel
+### 2. Installer les dépendances
 
 ```bash
 python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt -c constraints.txt
+source .venv/bin/activate  # macOS/Linux
+pip install -r requirements.txt
 ```
 
-### 4. Configurer les variables d'environnement
+### 3. Configuration
 
 ```bash
 cp .env.example .env
-# Éditer .env avec vos valeurs
 ```
 
-### 5. Installer les modèles
+Éditer `.env` et ajouter votre clé API :
 
-Les modèles AI ne sont PAS versionnés dans Git. Ils doivent être installés séparément :
+```env
+OPENAI_API_KEY=sk-your-key-here
+LLM_MODEL_PATH=gpt-4o-mini
+```
+
+**Obtenir une clé API :**
+- OpenAI: https://platform.openai.com/api-keys
+- Anthropic: https://console.anthropic.com/
+- Google: https://makersuite.google.com/app/apikey
+
+### 4. Test
 
 ```bash
-# Structure recommandée
-~/models/
-├── llm/      # Llama-3.2-3B-Instruct-Q4_K_M.gguf
-├── whisper/  # ggml-small.bin
-└── piper/    # fr_FR-siwis-medium.onnx + .json
+python test/test_cloud_pipeline.py
 ```
 
-Voir `workflow.md` pour les instructions détaillées de déploiement.
+**Pour un guide complet, voir [QUICKSTART.md](QUICKSTART.md)**
 
-## Configuration
+## 📚 Documentation
 
-Modifier `configs/default.yaml` pour ajuster :
-- Chemins des modèles
-- Devices audio ALSA
-- Pins GPIO
-- Paramètres LLM (température, threads, etc.)
-- Durées et seuils
+- **[QUICKSTART.md](QUICKSTART.md)** - Guide de démarrage rapide avec cloud API
+- **[Expression_besoin.md](Expression_besoin.md)** - Cahier des charges complet (français)
+- **[CLAUDE.md](CLAUDE.md)** - Guide pour Claude Code
+- **[docs/legacy/](docs/legacy/)** - Documentation du mode local (deprecated)
 
-## Développement
-
-### 📚 Documentation Détaillée
-
-- **[Mac Development Guide](docs/MAC_DEVELOPMENT.md)** - Développement local sur Mac
-- **[Raspberry Pi Setup Guide](docs/RASPBERRY_PI_SETUP.md)** - Installation complète sur Pi
-
-### Tests locaux (Mac)
-
-```bash
-# Avec GPIO mockés
-export MOCK_GPIO=true
-python -m app.main
-```
-
-**Note:** whisper.cpp, llama.cpp et Piper doivent être installés localement. Voir `docs/MAC_DEVELOPMENT.md` pour les instructions.
-
-### Déploiement sur Raspberry Pi
-
-```bash
-# Premier déploiement (depuis Mac)
-./scripts/deploy_init.sh
-
-# Sur le Pi, installer les dépendances
-ssh maxence@<PI_IP>
-cd ~/projects/storybox
-bash scripts/install_pi.sh
-
-# Mises à jour via Git
-git pull --rebase
-sudo systemctl restart storybox
-```
-
-**Voir `docs/RASPBERRY_PI_SETUP.md` pour le guide complet.**
-
-## Utilisation
-
-### Mode interactif
-1. Maintenir le bouton → LED "Listening"
-2. Dicter le thème de l'histoire
-3. Relâcher le bouton → LED "Processing"
-4. Attendre le début de la narration → LED "Narrating"
-5. Pression courte pendant narration → Pause/Reprise
-6. Pression longue (≥3s) → Arrêt propre
-
-### Métriques
-
-Logs et métriques disponibles dans `~/projects/storybox/logs/` :
-- Latence (relâchement → premier audio)
-- Tokens/seconde
-- Temps de chargement des modèles
-- Erreurs audio/GPIO
-
-## Architecture du code
+## 🗂️ Structure du Projet
 
 ```
 storybox/
 ├── app/
-│   ├── audio/       # Capture et playback audio
-│   ├── stt/         # Whisper wrapper
-│   ├── llm/         # Llama.cpp wrapper
-│   ├── tts/         # Piper wrapper
-│   ├── gpio/        # Button & LED handlers
-│   ├── state/       # State machine
-│   ├── utils/       # Config, logging, metrics
-│   └── main.py      # Orchestrateur principal
-├── configs/         # Fichiers YAML
-├── scripts/         # Scripts de déploiement
-├── tests/           # Tests unitaires et d'intégration
-└── models/          # Modèles AI (non versionnés)
+│   ├── llm/             # Celeste LLM wrapper
+│   │   └── celeste_llm.py
+│   ├── stt/             # System dictation (temporary)
+│   │   └── system_dictation.py
+│   ├── tts/             # TTS module (à venir)
+│   ├── gpio/            # Button & LED handlers
+│   ├── state/           # State machine
+│   └── utils/           # Config, logging, metrics
+├── test/                # Tests
+│   └── test_cloud_pipeline.py
+├── docs/                # Documentation
+│   └── legacy/          # Docs mode local
+├── configs/             # Configuration YAML
+├── scripts/             # Scripts de déploiement
+│   └── legacy/          # Scripts mode local
+├── .env.example         # Template de configuration
+├── requirements.txt     # Dépendances cloud
+└── QUICKSTART.md        # Guide de démarrage rapide
 ```
 
-## Roadmap
+## 🎮 Utilisation
 
-- **V0**: Pipeline de base hold-to-talk → STT → Plan → StoryGen → TTS
-- **V1**: Streaming affiné, LED avancées, pause/reprise, rotation logs
-- **V2**: SSD pour modèles, tuning thermique/threads
-- **V3**: Image Docker arm64 optionnelle
+### Test interactif (développement)
 
-Voir `TODO.md` pour le détail complet.
+```bash
+python test/test_cloud_pipeline.py
+```
 
-## Documentation
+Le test va :
+1. Enregistrer 5 secondes d'audio
+2. Transcrire avec Google Speech Recognition
+3. Générer un plan d'histoire avec Celeste LLM
+4. Générer le premier chapitre
+5. Afficher les résultats
 
-- `Expression_besoin.md` : Spécifications complètes (français)
-- `workflow.md` : Workflow de développement et déploiement
-- `CLAUDE.md` : Guide pour Claude Code
-- `TODO.md` : Tâches de développement
+### Sur Raspberry Pi (production)
 
-## Licence
+```bash
+# TODO: À venir quand TTS sera disponible
+# Le système utilisera le bouton GPIO pour l'interface hold-to-talk
+```
 
-[À définir]
+## 🛠️ Prérequis
 
-## Contributeurs
+### Pour le développement (Mac/Linux)
 
-Maxence - Créateur initial
+- Python 3.10+
+- PyAudio (pour l'enregistrement)
+- Connexion internet (APIs cloud)
+- Clé API OpenAI/Anthropic/Google
+
+### Pour la production (Raspberry Pi)
+
+- Raspberry Pi 4B (2GB+ RAM suffisant en mode cloud)
+- Carte microSD 16 GB minimum
+- Micro USB ou interface audio USB
+- Haut-parleur
+- Bouton poussoir GPIO
+- LED pour indicateurs d'état
+- **Connexion internet** (requis pour APIs cloud)
+
+## ⚙️ Configuration
+
+La configuration se fait via :
+1. **`.env`** : Clés API et chemins
+2. **`configs/default.yaml`** : Paramètres GPIO, audio, etc.
+
+Exemple `.env` :
+
+```env
+# Cloud API keys
+OPENAI_API_KEY=sk-your-key-here
+# ANTHROPIC_API_KEY=sk-ant-your-key
+# GOOGLE_API_KEY=your-google-key
+
+# Model selection
+LLM_MODEL_PATH=gpt-4o-mini
+
+# Audio devices (optionnel)
+# AUDIO_INPUT_DEVICE=plughw:1,0
+# AUDIO_OUTPUT_DEVICE=plughw:0,0
+
+# GPIO pins (Raspberry Pi only)
+# BUTTON_PIN=17
+```
+
+## 🗺️ Roadmap
+
+- [x] **V0.1**: Pipeline cloud de base (STT + LLM)
+- [ ] **V0.2**: Intégration Celeste TTS via Gradio
+- [ ] **V0.3**: Déploiement Raspberry Pi avec GPIO
+- [ ] **V1.0**: LED status, pause/reprise, système complet
+- [ ] **V1.1**: Optimisations streaming et gestion du contexte
+- [ ] **V2.0**: Interface web optionnelle, analytics
+
+## 🔄 Changement de Provider
+
+Celeste permet de changer de provider en modifiant simplement le model ID :
+
+```env
+# OpenAI
+LLM_MODEL_PATH=gpt-4o-mini
+
+# Anthropic
+LLM_MODEL_PATH=claude-3-5-sonnet-20241022
+
+# Google
+LLM_MODEL_PATH=gemini-2.0-flash
+
+# Mistral
+LLM_MODEL_PATH=mistral-large-2411
+```
+
+Aucun changement de code nécessaire !
+
+## 🤝 Contribution
+
+Les contributions sont bienvenues ! N'hésitez pas à :
+- Reporter des bugs via les issues
+- Proposer des améliorations
+- Soumettre des pull requests
+
+## 📄 Licence
+
+MIT
+
+## 👤 Auteur
+
+**Maxence** - Créateur initial
+
+---
+
+**Note**: Pour l'implémentation locale 100% offline avec modèles Whisper/TinyLlama/Piper, voir la branche `local_storybox` et la documentation dans `docs/legacy/`.
