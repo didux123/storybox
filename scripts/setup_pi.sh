@@ -58,7 +58,8 @@ pip install \
     pyyaml \
     pyaudio \
     gpiozero \
-    RPi.GPIO
+    RPi.GPIO \
+    python-json-logger
 
 echo -e "${GREEN}✓ Packages Python installés${NC}"
 echo
