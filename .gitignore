@@ -33,3 +33,4 @@ test/audio_samples/
 build/
 dist/
 logs/
+*.wav

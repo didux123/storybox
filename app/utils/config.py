@@ -34,6 +34,7 @@ class AudioInputConfig:
     channels: int = 1
     format: str = "S16_LE"
     chunk_duration_ms: int = 40
+    max_duration_s: int = 30
 
 
 @dataclass
@@ -214,6 +215,9 @@ def apply_env_overrides(config_dict: Dict[str, Any]) -> Dict[str, Any]:
     if os.getenv('PIPER_MODEL_PATH'):
         config_dict.setdefault('tts', {})['model_path'] = os.getenv('PIPER_MODEL_PATH')
 
+    if os.getenv('PIPER_CONFIG_PATH'):
+        config_dict.setdefault('tts', {})['config_path'] = os.getenv('PIPER_CONFIG_PATH')
+
     # Audio device overrides
     if os.getenv('AUDIO_INPUT_DEVICE'):
         config_dict.setdefault('audio', {}).setdefault('input', {})['device'] = os.getenv('AUDIO_INPUT_DEVICE')
@@ -245,9 +249,14 @@ def dict_to_config(config_dict: Dict[str, Any]) -> Config:
     Returns:
         Fully typed Config object
     """
-    # Audio config
+    # Audio config - pass max_duration from timing config to audio input
+    audio_input_dict = config_dict.get('audio', {}).get('input', {})
+    # Add max_duration_s from timing if not already set
+    if 'max_duration_s' not in audio_input_dict:
+        audio_input_dict['max_duration_s'] = config_dict.get('timing', {}).get('max_recording_duration_s', 30)
+
     audio_config = AudioConfig(
-        input=AudioInputConfig(**config_dict.get('audio', {}).get('input', {})),
+        input=AudioInputConfig(**audio_input_dict),
         output=AudioOutputConfig(**config_dict.get('audio', {}).get('output', {}))
     )
 

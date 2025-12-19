@@ -82,9 +82,12 @@ class PiperTTS:
 
         # Check if piper command is available
         try:
-            subprocess.run(['piper', '--version'], capture_output=True, check=True)
+            # Piper doesn't have --version, use --help
+            result = subprocess.run(['piper', '--help'], capture_output=True)
+            if result.returncode not in [0, 2]:  # --help returns 2 with error
+                raise FileNotFoundError
             self.logger.info("Piper TTS initialized successfully")
-        except (FileNotFoundError, subprocess.CalledProcessError):
+        except FileNotFoundError:
             raise RuntimeError(
                 "Piper command not found. Install: pip install piper-tts"
             )
