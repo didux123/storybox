@@ -1,32 +1,32 @@
 """
-Llama LLM Wrapper for StoryBox IA
+Celeste LLM Wrapper for StoryBox IA
 
-Handles text generation using llama.cpp for story planning and generation.
-Optimized for Raspberry Pi with quantized 3B models.
+Handles text generation using Celeste unified AI library.
+Supports multiple cloud providers (OpenAI, Anthropic, Gemini, Mistral, etc.)
 
 Features:
 - Story plan generation (10 chapters with JSON output)
 - Chapter-by-chapter story generation with context
-- Streaming token generation
-- Prompt template management
-- Memory-efficient context handling
+- Easy provider switching via configuration
+- Type-safe with Pydantic validation
+- Cloud-based (requires internet connection)
 
 Usage:
-    from app.llm.llama_llm import LlamaLLM
+    from app.llm.celeste_llm import CelesteLLM
 
-    llm = LlamaLLM(config.llm)
-    plan = llm.generate_story_plan("pirates et trésor")
-    chapter = llm.generate_chapter(plan, chapter_num=1)
+    llm = CelesteLLM(config.llm)
+    plan = await llm.generate_story_plan("pirates et trésor")
+    chapter = await llm.generate_chapter(plan, chapter_num=1)
 
 Author: StoryBox IA Team
 Date: 2024-12
 """
 
-import subprocess
 import json
 import re
+import asyncio
 from pathlib import Path
-from typing import Optional, Dict, Any, List, Generator
+from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
 
 from app.utils.logger import get_logger, TimingContext, log_metric
@@ -64,100 +64,94 @@ class StoryPlan:
         )
 
 
-class LlamaLLM:
+class CelesteLLM:
     """
-    Llama LLM engine wrapper
+    Celeste LLM engine wrapper
 
-    Generates story plans and chapters using llama.cpp.
-    Optimized for 3B quantized models on Raspberry Pi.
+    Generates story plans and chapters using Celeste unified AI library.
+    Supports multiple cloud providers with zero lock-in.
     """
 
-    def __init__(self, config: LLMConfig, llama_bin_path: Optional[Path] = None):
+    def __init__(self, config: LLMConfig):
         """
-        Initialize Llama LLM
+        Initialize Celeste LLM
 
         Args:
             config: LLM configuration object
-            llama_bin_path: Optional custom path to llama-cli binary
-                            Defaults to checking common locations
+                   config.model_path should contain the model ID
+                   (e.g., "gpt-4o", "claude-3-5-sonnet", "gemini-2.0-flash")
 
-        Raises:
-            FileNotFoundError: If model or binary not found
+        Environment variables required:
+            - OPENAI_API_KEY: For OpenAI models
+            - ANTHROPIC_API_KEY: For Anthropic models
+            - GOOGLE_API_KEY: For Google Gemini models
+            - MISTRAL_API_KEY: For Mistral models
         """
         self.config = config
         self.logger = get_logger(self.__class__.__name__)
 
-        # Validate model exists
-        if not Path(config.model_path).exists():
-            raise FileNotFoundError(f"LLM model not found: {config.model_path}")
+        # Extract model ID from model_path
+        # For cloud APIs, model_path is just the model ID
+        self.model_id = self._extract_model_id(config.model_path)
 
-        # Find llama-cli binary
-        self.llama_bin = self._find_llama_binary(llama_bin_path)
+        self.client = None
 
-        self.logger.info("Llama LLM initialized successfully")
-        self.logger.info(f"Binary: {self.llama_bin}")
-        self.logger.info(f"Model: {Path(config.model_path).name}")
-        self.logger.info(f"Context: {config.context_tokens} tokens")
-        self.logger.info(f"Threads: {config.threads}")
+        self.logger.info("Celeste LLM initialized successfully")
+        self.logger.info(f"Model: {self.model_id}")
         self.logger.info(f"Temperature: {config.temperature}")
+        self.logger.info(f"Max tokens: {config.context_tokens}")
 
-    def _find_llama_binary(self, custom_path: Optional[Path] = None) -> Path:
+    def _extract_model_id(self, model_path: str) -> str:
         """
-        Find llama-cli binary
-
-        Checks (in order):
-        1. Custom path if provided
-        2. Project bin/ directory
-        3. /tmp/llama.cpp/build/bin (Mac development)
-        4. System PATH
+        Extract model ID from config.model_path
 
         Args:
-            custom_path: Optional custom binary path
+            model_path: Can be full path or model ID
 
         Returns:
-            Path to llama-cli binary
+            Clean model ID for Celeste
 
-        Raises:
-            FileNotFoundError: If binary not found
+        Examples:
+            "gpt-4o" -> "gpt-4o"
+            "/path/to/model.gguf" -> "gpt-4o" (uses default)
+            "claude-3-5-sonnet-20241022" -> "claude-3-5-sonnet-20241022"
         """
-        if custom_path and custom_path.exists():
-            return custom_path
+        # If it looks like a file path, return default model
+        if '/' in model_path or model_path.endswith('.gguf'):
+            default_model = "gpt-4o-mini"
+            self.logger.warning(f"Model path looks like file path: {model_path}")
+            self.logger.warning(f"Using default cloud model: {default_model}")
+            return default_model
 
-        # Common locations
-        search_paths = [
-            # Project bin (after deployment)
-            Path(__file__).parent.parent.parent / "bin" / "llama-cli",
-            # Mac development location
-            Path("/tmp/llama.cpp/build/bin/llama-cli"),
-            # Raspberry Pi build location
-            Path.home() / "projects" / "storybox" / "bin" / "llama-cli",
-        ]
+        return model_path
 
-        for path in search_paths:
-            if path.exists() and path.is_file():
-                self.logger.info(f"Found llama-cli at: {path}")
-                return path
+    def _get_client(self):
+        """
+        Get or create Celeste client (lazy initialization)
 
-        # Try system PATH
-        try:
-            result = subprocess.run(
-                ['which', 'llama-cli'],
-                capture_output=True,
-                text=True,
-                check=True
-            )
-            path = Path(result.stdout.strip())
-            if path.exists():
-                return path
-        except subprocess.CalledProcessError:
-            pass
+        Returns:
+            Celeste text generation client
+        """
+        if self.client is None:
+            try:
+                from celeste import create_client, Capability
 
-        raise FileNotFoundError(
-            "llama-cli not found. Compile llama.cpp or specify llama_bin_path. "
-            "See docs/MAC_DEVELOPMENT.md or docs/RASPBERRY_PI_SETUP.md"
-        )
+                self.client = create_client(
+                    capability=Capability.TEXT_GENERATION,
+                    model=self.model_id
+                )
 
-    def generate(
+                self.logger.info(f"Celeste client created for model: {self.model_id}")
+            except ImportError:
+                raise RuntimeError(
+                    "Celeste library not installed. Install with: pip install 'celeste-ai[text-generation]'"
+                )
+            except Exception as e:
+                raise RuntimeError(f"Failed to create Celeste client: {e}")
+
+        return self.client
+
+    async def generate(
         self,
         prompt: str,
         max_tokens: int = 500,
@@ -171,14 +165,14 @@ class LlamaLLM:
             prompt: Input prompt
             max_tokens: Maximum tokens to generate
             temperature: Sampling temperature (overrides config)
-            stop_sequences: Sequences that stop generation
+            stop_sequences: Sequences that stop generation (not all models support)
 
         Returns:
             Generated text or None if generation failed
 
         Example:
-            >>> llm = LlamaLLM(config.llm)
-            >>> text = llm.generate("Il était une fois")
+            >>> llm = CelesteLLM(config.llm)
+            >>> text = await llm.generate("Il était une fois")
             >>> print(text)
             "Il était une fois un jeune garçon..."
         """
@@ -190,36 +184,18 @@ class LlamaLLM:
 
         with TimingContext("llm_generation", log_metric=True):
             try:
-                # Build llama command
-                cmd = [
-                    str(self.llama_bin),
-                    '-m', str(self.config.model_path),
-                    '-n', str(max_tokens),
-                    '-c', str(self.config.context_tokens),
-                    '-t', str(self.config.threads),
-                    '--temp', str(temperature or self.config.temperature),
-                    '--top-p', str(self.config.top_p),
-                    '--repeat-penalty', str(self.config.repeat_penalty),
-                    '-ngl', str(self.config.n_gpu_layers),
-                    '-p', prompt,
-                    '--no-display-prompt',  # Don't echo prompt in output
-                ]
+                client = self._get_client()
 
-                # Add stop sequences if provided
-                if stop_sequences:
-                    for seq in stop_sequences:
-                        cmd.extend(['--reverse-prompt', seq])
-
-                # Run llama
-                result = subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    text=True,
-                    timeout=120  # 2 minute timeout
+                # Generate with Celeste
+                response = await client.generate(
+                    prompt=prompt,
+                    max_tokens=max_tokens,
+                    temperature=temperature or self.config.temperature,
+                    # Note: Not all models support stop sequences
+                    # Celeste handles this automatically
                 )
 
-                # Parse output
-                output = result.stdout.strip()
+                output = response.content.strip()
 
                 if output:
                     self.logger.info(f"Generated {len(output)} chars")
@@ -234,17 +210,11 @@ class LlamaLLM:
                     self.logger.warning("No output from LLM")
                     return None
 
-            except subprocess.TimeoutExpired:
-                self.logger.error("LLM generation timeout (120s)")
-                return None
-            except subprocess.CalledProcessError as e:
-                self.logger.error(f"LLM generation failed: {e.stderr}")
-                return None
             except Exception as e:
                 self.logger.error(f"LLM generation error: {e}", exc_info=True)
                 return None
 
-    def generate_story_plan(self, theme: str, num_chapters: int = 10) -> Optional[StoryPlan]:
+    async def generate_story_plan(self, theme: str, num_chapters: int = 10) -> Optional[StoryPlan]:
         """
         Generate a story plan with chapters
 
@@ -261,8 +231,8 @@ class LlamaLLM:
             StoryPlan object or None if generation failed
 
         Example:
-            >>> llm = LlamaLLM(config.llm)
-            >>> plan = llm.generate_story_plan("pirates et trésor")
+            >>> llm = CelesteLLM(config.llm)
+            >>> plan = await llm.generate_story_plan("pirates et trésor")
             >>> for chapter in plan.chapters:
             ...     print(f"{chapter['number']}. {chapter['title']}")
         """
@@ -279,7 +249,7 @@ class LlamaLLM:
 
         with TimingContext("story_plan_generation", log_metric=True):
             # Generate with more tokens for full plan
-            output = self.generate(
+            output = await self.generate(
                 prompt,
                 max_tokens=1500,  # ~10 chapters * ~30 tokens per chapter
                 temperature=0.7   # Balanced creativity
@@ -366,7 +336,7 @@ JSON :"""
             self.logger.error(f"Plan parsing error: {e}", exc_info=True)
             return None
 
-    def generate_chapter(
+    async def generate_chapter(
         self,
         plan: StoryPlan,
         chapter_num: int,
@@ -388,8 +358,8 @@ JSON :"""
             Generated chapter text or None if failed
 
         Example:
-            >>> plan = llm.generate_story_plan("pirates")
-            >>> chapter1 = llm.generate_chapter(plan, 1)
+            >>> plan = await llm.generate_story_plan("pirates")
+            >>> chapter1 = await llm.generate_chapter(plan, 1)
             >>> print(chapter1)
         """
         if chapter_num < 1 or chapter_num > len(plan.chapters):
@@ -418,7 +388,7 @@ JSON :"""
 
         with TimingContext(f"chapter_{chapter_num}_generation", log_metric=True):
             # Generate chapter
-            output = self.generate(
+            output = await self.generate(
                 prompt,
                 max_tokens=800,  # ~300 words * ~2.5 tokens per word
                 temperature=0.8  # More creative for storytelling
@@ -468,45 +438,20 @@ Chapitre :"""
 
         return "\n".join(lines)
 
-    def stream_tokens(self, prompt: str, max_tokens: int = 500) -> Generator[str, None, None]:
-        """
-        Generate tokens with streaming (experimental)
 
-        Yields tokens as they're generated for real-time display.
-        Note: llama-cli doesn't have built-in streaming, so this
-        polls the output. For true streaming, use llama-server.
-
-        Args:
-            prompt: Input prompt
-            max_tokens: Max tokens to generate
-
-        Yields:
-            Generated tokens/text chunks
-
-        Example:
-            >>> for token in llm.stream_tokens("Il était une fois"):
-            ...     print(token, end='', flush=True)
-        """
-        # This is a simplified version
-        # For production, use llama-server with streaming API
-        output = self.generate(prompt, max_tokens)
-        if output:
-            yield output
-
-
-def test_llama_llm():
+async def test_celeste_llm():
     """
-    Simple test function for Llama LLM
+    Simple test function for Celeste LLM
 
-    Run this to verify LLM is working correctly.
+    Run this to verify cloud LLM is working correctly.
 
     Usage:
-        python -m app.llm.llama_llm
+        python -m app.llm.celeste_llm
     """
     from app.utils.config import get_config
 
     print("=" * 60)
-    print("Llama LLM Test")
+    print("Celeste LLM Test (Cloud API)")
     print("=" * 60)
 
     # Load config
@@ -514,7 +459,7 @@ def test_llama_llm():
 
     # Initialize LLM
     try:
-        llm = LlamaLLM(config.llm)
+        llm = CelesteLLM(config.llm)
         print("✓ LLM initialized")
     except Exception as e:
         print(f"✗ Failed to initialize LLM: {e}")
@@ -524,7 +469,7 @@ def test_llama_llm():
     print("\n--- Test 1: Generate Story Plan ---")
     theme = "des pirates qui cherchent un trésor caché"
 
-    plan = llm.generate_story_plan(theme, num_chapters=5)
+    plan = await llm.generate_story_plan(theme, num_chapters=5)
 
     if plan:
         print(f"✓ Generated plan for: {plan.theme}")
@@ -535,7 +480,7 @@ def test_llama_llm():
 
         # Test chapter generation
         print("\n--- Test 2: Generate Chapter 1 ---")
-        chapter_text = llm.generate_chapter(plan, chapter_num=1)
+        chapter_text = await llm.generate_chapter(plan, chapter_num=1)
 
         if chapter_text:
             word_count = len(chapter_text.split())
@@ -554,4 +499,4 @@ def test_llama_llm():
 
 if __name__ == "__main__":
     # Run test when module is executed directly
-    test_llama_llm()
+    asyncio.run(test_celeste_llm())

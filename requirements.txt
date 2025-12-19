@@ -1,4 +1,4 @@
-# StoryBox IA - Python Dependencies
+# StoryBox IA - Python Dependencies (Cloud API Mode - main branch)
 
 # Configuration
 pyyaml>=6.0
@@ -10,12 +10,14 @@ numpy>=1.24.0
 scipy>=1.11.0
 pyaudio>=0.2.13
 
-# Python bindings for AI models
-# Note: whisper.cpp, llama.cpp, and Piper need to be compiled separately
-# These are Python wrappers/utilities
-pywhispercpp>=1.0.0  # whisper.cpp Python bindings
-llama-cpp-python>=0.2.0  # llama.cpp Python bindings
-piper-phonemize>=1.1.0  # Piper TTS dependencies
+# Cloud AI APIs
+celeste-ai[text-generation]>=0.1.0  # Unified AI library (OpenAI, Anthropic, Gemini, etc.)
+SpeechRecognition>=3.10.0  # Google Speech Recognition for STT (temporary)
+
+# Local AI models (optional - see local_storybox branch)
+# pywhispercpp>=1.0.0  # whisper.cpp Python bindings
+# llama-cpp-python>=0.2.0  # llama.cpp Python bindings
+# piper-phonemize>=1.1.0  # Piper TTS dependencies
 
 # GPIO (Raspberry Pi only)
 # These will fail on Mac but that's OK - we'll mock them
