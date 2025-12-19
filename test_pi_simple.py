@@ -49,13 +49,44 @@ except ImportError:
 
 # Configuration
 AUDIO_FILE = "/tmp/storybox_recording.wav"
-AUDIO_INPUT = "plughw:1,0"  # USB mic
 BUTTON_PIN = 17
-SAMPLE_RATE = 16000
 CHANNELS = 1
 CHUNK = 1024
 LOG_DIR = Path.home() / "storybox" / "logs"
 LOG_FILE = LOG_DIR / "stories.log"
+
+
+def find_usb_audio_device():
+    """
+    Trouve le device USB audio et retourne (index, sample_rate)
+
+    Returns:
+        tuple: (device_index, sample_rate) ou (None, None) si non trouvé
+    """
+    import pyaudio
+    p = pyaudio.PyAudio()
+
+    for i in range(p.get_device_count()):
+        info = p.get_device_info_by_index(i)
+
+        # Chercher device USB avec input
+        if 'USB' in info['name'] and info['maxInputChannels'] > 0:
+            # Tester sample rates courants
+            for rate in [48000, 44100, 32000, 22050, 16000, 8000]:
+                try:
+                    if p.is_format_supported(
+                        rate,
+                        input_device=i,
+                        input_channels=1,
+                        input_format=pyaudio.paInt16
+                    ):
+                        p.terminate()
+                        return i, rate
+                except:
+                    continue
+
+    p.terminate()
+    return None, None
 
 
 def log_session(transcription: str, story: str, stt_time: float, llm_time: float, total_time: float):
@@ -95,13 +126,15 @@ def log_session(transcription: str, story: str, stt_time: float, llm_time: float
 class AudioRecorder:
     """Enregistreur audio en temps réel avec contrôle GPIO"""
 
-    def __init__(self, output_file: str, device_name: str = "plughw:1,0"):
+    def __init__(self, output_file: str, device_index: int, sample_rate: int):
         self.output_file = output_file
-        self.device_name = device_name
+        self.device_index = device_index
+        self.sample_rate = sample_rate
         self.is_recording = False
         self.frames = []
         self.audio = None
         self.stream = None
+        self.record_thread = None
 
     def start_recording(self):
         """Démarre l'enregistrement"""
@@ -111,21 +144,13 @@ class AudioRecorder:
         # Initialiser PyAudio
         self.audio = pyaudio.PyAudio()
 
-        # Trouver l'index du device
-        device_index = None
-        for i in range(self.audio.get_device_count()):
-            info = self.audio.get_device_info_by_index(i)
-            if self.device_name in info.get('name', ''):
-                device_index = i
-                break
-
         # Ouvrir le stream
         self.stream = self.audio.open(
             format=pyaudio.paInt16,
             channels=CHANNELS,
-            rate=SAMPLE_RATE,
+            rate=self.sample_rate,
             input=True,
-            input_device_index=device_index,
+            input_device_index=self.device_index,
             frames_per_buffer=CHUNK
         )
 
@@ -163,7 +188,7 @@ class AudioRecorder:
             wf = wave.open(self.output_file, 'wb')
             wf.setnchannels(CHANNELS)
             wf.setsampwidth(self.audio.get_sample_size(pyaudio.paInt16))
-            wf.setframerate(SAMPLE_RATE)
+            wf.setframerate(self.sample_rate)
             wf.writeframes(b''.join(self.frames))
             wf.close()
             return True
@@ -196,12 +221,24 @@ async def test_pipeline():
     print("📝 ÉTAPE 1/3: ENREGISTREMENT")
     print("─" * 70)
     print()
+
+    # Détecter le device USB audio
+    print("Détection du device USB audio...")
+    device_idx, sample_rate = find_usb_audio_device()
+
+    if device_idx is None:
+        print("❌ Aucun device USB audio trouvé")
+        print("   Vérifiez que le micro USB est branché")
+        return
+
+    print(f"✓ Device trouvé (index: {device_idx}, sample rate: {sample_rate} Hz)")
+    print()
     print("🔵 Appuyez sur le bouton (GPIO pin 17) pour parler...")
     print()
 
-    # Créer le bouton
+    # Créer le bouton et recorder
     button = Button(BUTTON_PIN, pull_up=True, bounce_time=0.1)
-    recorder = AudioRecorder(AUDIO_FILE, AUDIO_INPUT)
+    recorder = AudioRecorder(AUDIO_FILE, device_idx, sample_rate)
 
     # Variable pour suivre l'état
     recording_started = False

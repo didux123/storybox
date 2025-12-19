@@ -28,6 +28,7 @@ sudo apt install -y \
     python3-pip \
     portaudio19-dev \
     python3-pyaudio \
+    liblgpio-dev \
     git \
     alsa-utils
 echo -e "${GREEN}✓ Dépendances système installées${NC}"
