@@ -2,11 +2,17 @@
 
 ## 🚧 En Cours (V0.2)
 
-- [ ] Attendre la release de Celeste TTS via Gradio
+- [ ] Attendre la release de Celeste TTS via Gradium
 - [ ] Intégrer Celeste TTS pour la narration
 - [ ] Tester le pipeline complet cloud (STT + LLM + TTS)
 
 ## 📋 Prochaines Fonctionnalités
+
+### Pour Developpement
+- [ ] Créer, tester et déployer une webapp sur une branche concurrente (streamlit ?) pour tester la pipeline de génération d'histoire
+  - Déploiement local dans un premier temps (docker)
+
+- Utiliser le mode streaming des IA pour recevoir les données plus rapidement ?
 
 ### V0.3 - Histoires Longues & Génération Streaming
 
@@ -17,11 +23,20 @@
   - Créer le plan complet de l'histoire
   - Générer les 2-3 premiers chapitres immédiatement
   - Commencer la narration du chapitre 1
-
+- 
 - [ ] **Étape 2** : Génération chapitre par chapitre pendant narration
   - Pendant que le chapitre N est narré, générer le chapitre N+2
   - Pipeline concurrent : TTS (chapitre N) || LLM (chapitre N+2)
   - Buffer management pour éviter les latences
+  - générer un chapitre puis l'autre en envoyant un context de ce qui s'est passé précédemment
+    - Donner du context de ce qui s'est passé précédemment dans les chapitres précédentes
+      - Demander un structured output en JSON avec : 
+        - TITLE histoire (qui doit réster le même tout le temps)
+        - TITLE CHAPITRE + NUMERO (envoyé suite à la toute première génération)
+        - Chapitre rédigé
+        - CONTEXT GLOBAL (l'IA met à jour à chaque fois un context global de l'histoire pour permettre au prochain appel d'avoir du context sur la génération à créer)
+      
+
 
 #### Métriques & Timing
 - [ ] Calculer la durée de narration par chapitre
@@ -57,11 +72,14 @@
 
 **Objectif** : Ajouter de la musique de fond pour une expérience plus immersive
 
+- [ ] Demander dans le structured output des chapitrages une ambiance ou un thème sur ce chapitre
+  - Ca permettra de générer des musiques correspondantes à ce chapitre pour les jouer en même temps que la lecture
+
+
 #### Musique de Fond
-- [ ] Sélection de musiques d'ambiance libres de droits
-  - Musiques douces pour commencement
-  - Musiques rythmées pour péripéties
-  - Musiques apaisantes pour conclusion
+- [ ] générer de la musique par IA via API
+  - MUREKA generator
+  - Sauvegarder ces musiques en fonction de leur thème, on pourra les sélectionner au besoin pendant la lecture de l'histoire quand il y en aura beaucoup
 
 - [ ] Intégration audio
   - Mixer musique de fond + narration TTS

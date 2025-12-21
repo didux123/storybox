@@ -1,0 +1,20 @@
+# Development Dependencies (Mac/PC only, not for Raspberry Pi)
+
+# Include base requirements
+-r requirements.txt
+
+# Celeste providers (for local dev/testing)
+# Available models: gemini-2.5-flash, gemini-2.5-pro, gpt-4o-mini, claude-3-5-sonnet
+celeste-anthropic>=0.3.0
+celeste-google>=0.3.0
+celeste-openai>=0.3.0
+celeste-mistral>=0.3.0
+celeste-xai>=0.3.0
+
+# Web Interface
+streamlit>=1.50.0  # Web interface for testing story generation
+
+# Development tools (already in requirements.txt but repeated for clarity)
+black>=23.0.0
+flake8>=6.0.0
+mypy>=1.5.0

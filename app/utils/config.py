@@ -338,8 +338,8 @@ def get_config(config_path: Optional[Path] = None, reload: bool = False) -> Conf
     if _config is not None and not reload:
         return _config
 
-    # Load environment variables from .env file
-    load_dotenv()
+    # Load environment variables from .env file (override existing)
+    load_dotenv(override=True)
 
     # Determine config file path
     if config_path is None:

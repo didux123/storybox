@@ -11,8 +11,12 @@ scipy>=1.11.0
 pyaudio>=0.2.13
 
 # Cloud AI APIs
-celeste-ai[text-generation]>=0.1.0  # Unified AI library (OpenAI, Anthropic, Gemini, etc.)
+celeste-ai[text-generation]>=0.3.0  # Unified AI library (OpenAI, Anthropic, Gemini, etc.)
 SpeechRecognition>=3.10.0  # Google Speech Recognition for STT (temporary)
+
+# Web Interface (optional - development only)
+# Install with: uv pip install streamlit
+# streamlit>=1.50.0  # Web interface for testing story generation (commented for Pi)
 
 # Local AI models (optional - see local_storybox branch)
 # pywhispercpp>=1.0.0  # whisper.cpp Python bindings

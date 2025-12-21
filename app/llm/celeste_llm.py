@@ -28,12 +28,46 @@ import asyncio
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
+from pydantic import BaseModel, Field
 
 from app.utils.logger import get_logger, TimingContext, log_metric
 from app.utils.config import LLMConfig
 
 
+def load_prompts_config() -> Dict[str, Any]:
+    """
+    Load prompts configuration from JSON file
+
+    Returns:
+        Dictionary with prompt configurations
+
+    Raises:
+        FileNotFoundError: If prompts.json doesn't exist
+    """
+    project_root = Path(__file__).parent.parent.parent
+    prompts_file = project_root / "configs" / "prompts.json"
+
+    if not prompts_file.exists():
+        raise FileNotFoundError(f"Prompts config not found: {prompts_file}")
+
+    with open(prompts_file, 'r', encoding='utf-8') as f:
+        return json.load(f)
+
+
 logger = get_logger(__name__)
+
+
+# Pydantic models for structured output
+class ChapterModel(BaseModel):
+    """Pydantic model for a single chapter in story plan"""
+    number: int = Field(description="Chapter number (1-indexed)")
+    title: str = Field(description="Chapter title")
+    summary: str = Field(description="One-sentence summary of the chapter")
+
+
+class StoryPlanResponse(BaseModel):
+    """Pydantic model for complete story plan response"""
+    chapters: List[ChapterModel] = Field(description="List of chapters in the story")
 
 
 @dataclass
@@ -96,6 +130,14 @@ class CelesteLLM:
 
         self.client = None
 
+        # Load prompts configuration from JSON
+        try:
+            self.prompts_config = load_prompts_config()
+            self.logger.info("Prompts configuration loaded from configs/prompts.json")
+        except FileNotFoundError as e:
+            self.logger.warning(f"Prompts config not found, using defaults: {e}")
+            self.prompts_config = {}
+
         self.logger.info("Celeste LLM initialized successfully")
         self.logger.info(f"Model: {self.model_id}")
         self.logger.info(f"Temperature: {config.temperature}")
@@ -125,6 +167,39 @@ class CelesteLLM:
 
         return model_path
 
+    def _detect_provider(self, model_id: str):
+        """
+        Detect provider enum from model ID
+
+        Args:
+            model_id: Model identifier
+
+        Returns:
+            Provider enum for Celeste
+
+        Examples:
+            "gemini-2.0-flash-exp" -> Provider.GOOGLE
+            "gpt-4o" -> Provider.OPENAI
+            "claude-3-5-sonnet" -> Provider.ANTHROPIC
+            "mistral-large" -> Provider.MISTRAL
+        """
+        from celeste import Provider
+
+        model_lower = model_id.lower()
+
+        if "gemini" in model_lower:
+            return Provider.GOOGLE
+        elif "gpt" in model_lower or "o1" in model_lower:
+            return Provider.OPENAI
+        elif "claude" in model_lower:
+            return Provider.ANTHROPIC
+        elif "mistral" in model_lower:
+            return Provider.MISTRAL
+        else:
+            # Default to openai if unknown
+            self.logger.warning(f"Unknown model provider for '{model_id}', defaulting to OpenAI")
+            return Provider.OPENAI
+
     def _get_client(self):
         """
         Get or create Celeste client (lazy initialization)
@@ -136,12 +211,18 @@ class CelesteLLM:
             try:
                 from celeste import create_client, Capability
 
+                # Detect provider from model ID
+                provider = self._detect_provider(self.model_id)
+
+                self.logger.info(f"Creating Celeste client with provider={provider}, model='{self.model_id}'")
+
                 self.client = create_client(
                     capability=Capability.TEXT_GENERATION,
+                    provider=provider,
                     model=self.model_id
                 )
 
-                self.logger.info(f"Celeste client created for model: {self.model_id}")
+                self.logger.info(f"Celeste client created successfully")
             except ImportError:
                 raise RuntimeError(
                     "Celeste library not installed. Install with: pip install 'celeste-ai[text-generation]'"
@@ -239,7 +320,7 @@ class CelesteLLM:
         self.logger.info(f"Generating story plan: {theme} ({num_chapters} chapters)")
 
         # Use configured prompt template or default
-        prompt_template = self.config.prompts.plan or self._get_default_plan_prompt()
+        prompt_template = self.config.prompts.plan or self._get_plan_prompt()
 
         # Fill in template
         prompt = prompt_template.format(
@@ -248,28 +329,66 @@ class CelesteLLM:
         )
 
         with TimingContext("story_plan_generation", log_metric=True):
-            # Generate with more tokens for full plan
+            # Generate text with standard method
             output = await self.generate(
                 prompt,
-                max_tokens=1500,  # ~10 chapters * ~30 tokens per chapter
+                max_tokens=4000,  # High value to avoid truncation
                 temperature=0.7   # Balanced creativity
             )
 
             if not output:
                 return None
 
-            # Parse JSON output
-            plan = self._parse_story_plan(output, theme)
+            # Parse JSON output with Pydantic validation
+            try:
+                # Clean markdown code blocks if present
+                json_str = output.strip()
 
-            if plan:
+                # Remove markdown code fence if present (```json ... ```)
+                if '```' in json_str:
+                    # Extract JSON from code block
+                    json_match = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', json_str, re.DOTALL)
+                    if json_match:
+                        json_str = json_match.group(1).strip()
+                    else:
+                        # Fallback: try to find raw JSON
+                        json_match = re.search(r'\{[\s\S]*\}', json_str)
+                        if json_match:
+                            json_str = json_match.group(0)
+
+                # Parse with Pydantic
+                plan_data = StoryPlanResponse.model_validate_json(json_str)
+
+                # Convert to StoryPlan
+                chapters = [
+                    {
+                        'number': ch.number,
+                        'title': ch.title,
+                        'summary': ch.summary
+                    }
+                    for ch in plan_data.chapters
+                ]
+
+                plan = StoryPlan(theme=theme, chapters=chapters)
                 self.logger.info(f"Generated plan with {len(plan.chapters)} chapters")
                 return plan
-            else:
-                self.logger.error("Failed to parse story plan from LLM output")
+
+            except Exception as e:
+                self.logger.error(f"Story plan parsing error: {e}", exc_info=True)
+                self.logger.debug(f"LLM output: {output[:500]}")
                 return None
 
-    def _get_default_plan_prompt(self) -> str:
-        """Get default story plan prompt template"""
+    def _get_plan_prompt(self) -> str:
+        """
+        Get story plan prompt template from config
+
+        Returns:
+            Prompt template string or default if not in config
+        """
+        if 'plan' in self.prompts_config and 'user_template' in self.prompts_config['plan']:
+            return self.prompts_config['plan']['user_template']
+
+        # Fallback to default
         return """Génère un plan de {num_chapters} chapitres cohérents sur le thème suivant : {theme}.
 
 Chaque chapitre doit contenir :
@@ -371,7 +490,7 @@ JSON :"""
         self.logger.info(f"Generating chapter {chapter_num}: {chapter_info['title']}")
 
         # Use configured prompt template or default
-        prompt_template = self.config.prompts.chapter or self._get_default_chapter_prompt()
+        prompt_template = self.config.prompts.chapter or self._get_chapter_prompt()
 
         # Prepare context
         plan_text = self._format_plan_for_context(plan)
@@ -402,8 +521,17 @@ JSON :"""
             else:
                 return None
 
-    def _get_default_chapter_prompt(self) -> str:
-        """Get default chapter generation prompt"""
+    def _get_chapter_prompt(self) -> str:
+        """
+        Get chapter generation prompt template from config
+
+        Returns:
+            Prompt template string or default if not in config
+        """
+        if 'chapter' in self.prompts_config and 'user_template' in self.prompts_config['chapter']:
+            return self.prompts_config['chapter']['user_template']
+
+        # Fallback to default
         return """Écris le chapitre {chapter_num} intitulé "{chapter_title}".
 
 Contexte cumulatif des chapitres précédents :
