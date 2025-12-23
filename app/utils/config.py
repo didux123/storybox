@@ -77,6 +77,9 @@ class LLMConfig:
     temperature: float = 0.7
     top_p: float = 0.9
     repeat_penalty: float = 1.1
+    max_tokens: int = 2000  # Default max tokens for generation
+    plan_max_tokens: Optional[int] = None  # Max tokens for story plan generation (None = let model decide)
+    chapter_max_tokens: Optional[int] = None  # Max tokens for chapter generation (None = let model decide)
     prompts: LLMPromptsConfig = field(default_factory=LLMPromptsConfig)
 
 
@@ -268,6 +271,9 @@ def dict_to_config(config_dict: Dict[str, Any]) -> Config:
         temperature=llm_data.get('temperature', 0.7),
         top_p=llm_data.get('top_p', 0.9),
         repeat_penalty=llm_data.get('repeat_penalty', 1.1),
+        max_tokens=llm_data.get('max_tokens', 2000),
+        plan_max_tokens=llm_data.get('plan_max_tokens'),
+        chapter_max_tokens=llm_data.get('chapter_max_tokens'),
         prompts=llm_prompts
     )
 

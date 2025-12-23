@@ -23,6 +23,51 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app.llm.celeste_llm import CelesteLLM, StoryPlan
 from app.utils.config import get_config
+from webapp.utils.prompt_editor import load_prompts, save_prompts
+
+
+def load_llm_config():
+    """Load LLM configuration including pricing"""
+    try:
+        import json
+        config_path = Path(__file__).parent.parent / "configs" / "llm_config.json"
+        with open(config_path, 'r') as f:
+            return json.load(f)
+    except Exception as e:
+        st.warning(f"Could not load LLM config: {e}")
+        return {}
+
+
+def estimate_tokens(text: str) -> int:
+    """Estimate token count from text (rough: 1 token ≈ 4 chars)"""
+    return len(text) // 4
+
+
+def calculate_cost(input_tokens: int, output_tokens: int, model_id: str) -> float:
+    """
+    Calculate estimated cost in USD
+
+    Args:
+        input_tokens: Number of input tokens
+        output_tokens: Number of output tokens
+        model_id: Model identifier
+
+    Returns:
+        Estimated cost in USD
+    """
+    llm_config = load_llm_config()
+
+    if 'pricing' not in llm_config:
+        return 0.0
+
+    pricing = llm_config['pricing'].get(model_id)
+    if not pricing:
+        return 0.0
+
+    input_cost = (input_tokens / 1_000_000) * pricing.get('input_per_1m', 0)
+    output_cost = (output_tokens / 1_000_000) * pricing.get('output_per_1m', 0)
+
+    return input_cost + output_cost
 
 
 def run_async(coro):
@@ -165,6 +210,19 @@ def main():
 
         st.divider()
 
+        # Afficher les erreurs si présentes
+        if 'errors' in st.session_state and st.session_state['errors']:
+            st.error(f"⚠️ {len(st.session_state['errors'])} erreur(s)")
+            with st.expander("Voir les erreurs"):
+                for i, error in enumerate(st.session_state['errors'][-5:], 1):  # Dernières 5 erreurs
+                    st.text(f"{i}. {error['type']}: {error['message']}")
+                    st.caption(f"Heure: {error.get('time', 'N/A')}")
+                if st.button("Effacer les erreurs"):
+                    st.session_state['errors'] = []
+                    st.rerun()
+
+        st.divider()
+
         # Info
         with st.expander("ℹ️ À propos"):
             st.markdown("""
@@ -183,7 +241,7 @@ def main():
             """)
 
     # Main content - Tabs
-    tab1, tab2, tab3 = st.tabs(["🎤 Prompt & Plan", "✍️ Génération Chapitres", "📚 Histoire Complète"])
+    tab1, tab2, tab3, tab4 = st.tabs(["🎤 Prompt & Plan", "✍️ Génération Chapitres", "📚 Histoire Complète", "⚙️ Prompts"])
 
     # Tab 1: Prompt & Plan Generation
     with tab1:
@@ -219,17 +277,32 @@ def main():
                             st.session_state['user_prompt'] = user_prompt
                             st.session_state['chapters_generated'] = {}
 
+                            # Calculer métriques
+                            # Estimation des tokens (input = prompt, output = plan JSON)
+                            plan_json = str(plan.to_dict())
+                            input_tokens = estimate_tokens(user_prompt)
+                            output_tokens = estimate_tokens(plan_json)
+                            total_tokens = input_tokens + output_tokens
+
+                            # Calculer coût
+                            cost = calculate_cost(input_tokens, output_tokens, config.llm.model_path)
+
                             # Afficher succès
                             st.success(f"✅ Plan généré en {generation_time:.1f}s")
 
-                            # Métriques
-                            col1, col2, col3 = st.columns(3)
+                            # Métriques détaillées
+                            col1, col2, col3, col4 = st.columns(4)
                             with col1:
                                 st.metric("Chapitres", len(plan.chapters))
                             with col2:
                                 st.metric("Temps", f"{generation_time:.1f}s")
                             with col3:
-                                st.metric("Thème", user_prompt[:20] + "...")
+                                st.metric("Tokens", f"~{total_tokens:,}", delta=f"in:{input_tokens} out:{output_tokens}")
+                            with col4:
+                                if cost > 0:
+                                    st.metric("Coût", f"${cost:.6f}", help="Estimation basée sur les tarifs du modèle")
+                                else:
+                                    st.metric("Coût", "N/A", help="Tarif non disponible pour ce modèle")
 
                             # Afficher le plan
                             st.subheader("📖 Plan de l'histoire")
@@ -242,8 +315,18 @@ def main():
                             st.error("❌ Échec de la génération du plan")
 
                     except Exception as e:
-                        st.error(f"❌ Erreur: {e}")
-                        st.exception(e)
+                        # Stocker l'erreur
+                        if 'errors' not in st.session_state:
+                            st.session_state['errors'] = []
+                        st.session_state['errors'].append({
+                            'type': 'Plan Generation Error',
+                            'message': str(e),
+                            'time': time.strftime('%H:%M:%S')
+                        })
+
+                        st.error(f"❌ Erreur lors de la génération du plan: {e}")
+                        with st.expander("Détails de l'erreur"):
+                            st.exception(e)
 
         # Afficher le plan existant si disponible
         if 'story_plan' in st.session_state:
@@ -320,25 +403,46 @@ def main():
                             generation_time = time.time() - start_time
 
                             if chapter_text:
-                                # Stocker
+                                # Calculer métriques
+                                word_count = len(chapter_text.split())
+
+                                # Estimation des tokens
+                                # Input = prompt complet (template + context + plan)
+                                input_estimate = cumulative_context + str(plan.to_dict()) + chapter_info['title']
+                                input_tokens = estimate_tokens(input_estimate)
+                                output_tokens = estimate_tokens(chapter_text)
+                                total_tokens = input_tokens + output_tokens
+
+                                # Calculer coût
+                                cost = calculate_cost(input_tokens, output_tokens, config.llm.model_path)
+
+                                # Stocker avec métriques
                                 if 'chapters_generated' not in st.session_state:
                                     st.session_state['chapters_generated'] = {}
 
                                 st.session_state['chapters_generated'][chapter_num] = {
                                     'text': chapter_text,
-                                    'time': generation_time
+                                    'time': generation_time,
+                                    'tokens': total_tokens,
+                                    'cost': cost,
+                                    'word_count': word_count
                                 }
 
-                                word_count = len(chapter_text.split())
-
-                                # Métriques
-                                col1, col2, col3 = st.columns(3)
+                                # Métriques détaillées
+                                col1, col2, col3, col4, col5 = st.columns(5)
                                 with col1:
                                     st.metric("Mots", word_count)
                                 with col2:
                                     st.metric("Temps", f"{generation_time:.1f}s")
                                 with col3:
                                     st.metric("Mots/sec", f"{word_count/generation_time:.0f}")
+                                with col4:
+                                    st.metric("Tokens", f"~{total_tokens:,}", delta=f"in:{input_tokens} out:{output_tokens}")
+                                with col5:
+                                    if cost > 0:
+                                        st.metric("Coût", f"${cost:.6f}")
+                                    else:
+                                        st.metric("Coût", "N/A")
 
                                 # Afficher le chapitre
                                 st.success(f"✅ Chapitre {chapter_num} généré")
@@ -348,8 +452,18 @@ def main():
                                 st.error("❌ Échec de la génération")
 
                         except Exception as e:
-                            st.error(f"❌ Erreur: {e}")
-                            st.exception(e)
+                            # Stocker l'erreur
+                            if 'errors' not in st.session_state:
+                                st.session_state['errors'] = []
+                            st.session_state['errors'].append({
+                                'type': f'Chapter {chapter_num} Generation Error',
+                                'message': str(e),
+                                'time': time.strftime('%H:%M:%S')
+                            })
+
+                            st.error(f"❌ Erreur lors de la génération du chapitre {chapter_num}: {e}")
+                            with st.expander("Détails de l'erreur"):
+                                st.exception(e)
 
             # Afficher les chapitres déjà générés
             if st.session_state.get('chapters_generated'):
@@ -361,8 +475,25 @@ def main():
                     ch_info = plan.chapters[ch_num - 1]
 
                     with st.expander(f"✅ Chapitre {ch_num}: {ch_info['title']}"):
-                        word_count = len(ch_data['text'].split())
-                        st.caption(f"⏱️ Généré en {ch_data['time']:.1f}s | 📝 {word_count} mots")
+                        # Afficher métriques si disponibles
+                        if 'tokens' in ch_data and 'cost' in ch_data:
+                            col1, col2, col3, col4 = st.columns(4)
+                            with col1:
+                                st.caption(f"📝 {ch_data.get('word_count', len(ch_data['text'].split()))} mots")
+                            with col2:
+                                st.caption(f"⏱️ {ch_data['time']:.1f}s")
+                            with col3:
+                                st.caption(f"🎯 ~{ch_data['tokens']:,} tokens")
+                            with col4:
+                                if ch_data['cost'] > 0:
+                                    st.caption(f"💰 ${ch_data['cost']:.6f}")
+                                else:
+                                    st.caption("💰 N/A")
+                        else:
+                            # Ancien format sans métriques détaillées
+                            word_count = len(ch_data['text'].split())
+                            st.caption(f"⏱️ Généré en {ch_data['time']:.1f}s | 📝 {word_count} mots")
+
                         st.markdown(ch_data['text'])
 
     # Tab 3: Complete Story
@@ -381,6 +512,36 @@ def main():
             # Progression
             progress = generated_count / total_chapters
             st.progress(progress, text=f"Progression: {generated_count}/{total_chapters} chapitres générés")
+
+            # Dashboard de métriques globales si au moins un chapitre généré
+            if generated_count > 0:
+                st.divider()
+                st.subheader("📊 Métriques de Performance Globales")
+
+                # Calculer totaux
+                total_time = sum(ch.get('time', 0) for ch in chapters_gen.values())
+                total_words = sum(ch.get('word_count', len(ch['text'].split())) for ch in chapters_gen.values())
+                total_tokens = sum(ch.get('tokens', 0) for ch in chapters_gen.values())
+                total_cost = sum(ch.get('cost', 0) for ch in chapters_gen.values())
+
+                # Afficher métriques
+                col1, col2, col3, col4, col5 = st.columns(5)
+                with col1:
+                    st.metric("Chapitres générés", generated_count, delta=f"sur {total_chapters}")
+                with col2:
+                    st.metric("Temps total", f"{total_time:.1f}s", delta=f"{total_time/60:.1f} min")
+                with col3:
+                    st.metric("Mots totaux", f"{total_words:,}", delta=f"~{total_words/generated_count:.0f}/ch" if generated_count > 0 else None)
+                with col4:
+                    if total_tokens > 0:
+                        st.metric("Tokens totaux", f"~{total_tokens:,}", delta=f"~{total_tokens/generated_count:.0f}/ch" if generated_count > 0 else None)
+                    else:
+                        st.metric("Tokens totaux", "N/A")
+                with col5:
+                    if total_cost > 0:
+                        st.metric("Coût total", f"${total_cost:.6f}", delta=f"${total_cost/generated_count:.6f}/ch" if generated_count > 0 else None)
+                    else:
+                        st.metric("Coût total", "N/A")
 
             st.divider()
 
@@ -418,18 +579,38 @@ def main():
                                     generation_time = time.time() - start_time
 
                                     if chapter_text:
+                                        # Calculer métriques
+                                        word_count = len(chapter_text.split())
+                                        input_estimate = cumulative_context + str(plan.to_dict()) + plan.chapters[ch_num - 1]['title']
+                                        input_tokens = estimate_tokens(input_estimate)
+                                        output_tokens = estimate_tokens(chapter_text)
+                                        total_tokens = input_tokens + output_tokens
+                                        cost = calculate_cost(input_tokens, output_tokens, config.llm.model_path)
+
                                         if 'chapters_generated' not in st.session_state:
                                             st.session_state['chapters_generated'] = {}
 
                                         st.session_state['chapters_generated'][ch_num] = {
                                             'text': chapter_text,
-                                            'time': generation_time
+                                            'time': generation_time,
+                                            'tokens': total_tokens,
+                                            'cost': cost,
+                                            'word_count': word_count
                                         }
 
                                     # Update progress
                                     progress_bar.progress(ch_num / total_chapters)
 
                                 except Exception as e:
+                                    # Stocker l'erreur
+                                    if 'errors' not in st.session_state:
+                                        st.session_state['errors'] = []
+                                    st.session_state['errors'].append({
+                                        'type': f'Auto-gen Chapter {ch_num} Error',
+                                        'message': str(e),
+                                        'time': time.strftime('%H:%M:%S')
+                                    })
+
                                     st.error(f"❌ Erreur chapitre {ch_num}: {e}")
                                     break
 
@@ -475,6 +656,139 @@ def main():
                         file_name=f"histoire_{int(time.time())}.md",
                         mime="text/markdown"
                     )
+
+    # Tab 4: Prompt Editor
+    with tab4:
+        st.header("⚙️ Éditeur de Prompts")
+
+        st.info("Modifiez les prompts utilisés pour la génération. Les changements sont sauvegardés dans `configs/prompts.json`.")
+
+        # Charger les prompts
+        try:
+            prompts = load_prompts()
+        except Exception as e:
+            st.error(f"❌ Erreur chargement prompts: {e}")
+            st.stop()
+
+        # Section Plan
+        st.subheader("📖 Génération du Plan")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("**System Prompt**")
+            plan_system = st.text_area(
+                "Instructions système pour le plan",
+                value=prompts['plan']['system_prompt'],
+                height=200,
+                key="plan_system",
+                help="Définit le rôle et le comportement de l'IA pour la génération du plan"
+            )
+
+        with col2:
+            st.markdown("**User Template**")
+            plan_template = st.text_area(
+                "Template du prompt utilisateur",
+                value=prompts['plan']['user_template'],
+                height=200,
+                key="plan_template",
+                help="Variables disponibles: {theme}, {num_chapters}"
+            )
+
+        # Preview du plan avec variables
+        with st.expander("👁️ Preview du prompt plan (avec variables remplies)"):
+            preview_theme = st.text_input("Thème de test", "un robot qui découvre les émotions", key="preview_theme_plan")
+            preview_chapters = st.number_input("Nombre de chapitres", 3, 10, 5, key="preview_chapters_plan")
+
+            try:
+                filled_plan = plan_template.format(
+                    theme=preview_theme,
+                    num_chapters=preview_chapters
+                )
+                st.code(filled_plan, language="markdown")
+            except Exception as e:
+                st.error(f"Erreur de formatage: {e}")
+
+        st.divider()
+
+        # Section Chapter
+        st.subheader("✍️ Génération des Chapitres")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.markdown("**System Prompt**")
+            chapter_system = st.text_area(
+                "Instructions système pour les chapitres",
+                value=prompts['chapter']['system_prompt'],
+                height=200,
+                key="chapter_system",
+                help="Définit le rôle et le comportement de l'IA pour la génération des chapitres"
+            )
+
+        with col2:
+            st.markdown("**User Template**")
+            chapter_template = st.text_area(
+                "Template du prompt utilisateur",
+                value=prompts['chapter']['user_template'],
+                height=200,
+                key="chapter_template",
+                help="Variables: {chapter_num}, {chapter_title}, {cumulative_context}, {story_plan}, {min_words}, {max_words}"
+            )
+
+        # Preview du chapitre avec variables
+        with st.expander("👁️ Preview du prompt chapitre (avec variables remplies)"):
+            preview_ch_num = st.number_input("Numéro chapitre", 1, 10, 1, key="preview_ch_num")
+            preview_ch_title = st.text_input("Titre du chapitre", "Le Réveil du Robot", key="preview_ch_title")
+
+            try:
+                filled_chapter = chapter_template.format(
+                    chapter_num=preview_ch_num,
+                    chapter_title=preview_ch_title,
+                    cumulative_context="C'est le début de l'histoire.",
+                    story_plan="1. Le Réveil du Robot: Un petit robot s'active pour la première fois.\n2. La Découverte: Il explore son environnement.",
+                    min_words=150,
+                    max_words=300
+                )
+                st.code(filled_chapter, language="markdown")
+            except Exception as e:
+                st.error(f"Erreur de formatage: {e}")
+
+        st.divider()
+
+        # Boutons d'action
+        col1, col2, col3 = st.columns([1, 1, 3])
+
+        with col1:
+            if st.button("💾 Sauvegarder", type="primary"):
+                # Construire le nouveau config
+                new_prompts = {
+                    "plan": {
+                        "system_prompt": plan_system,
+                        "user_template": plan_template
+                    },
+                    "chapter": {
+                        "system_prompt": chapter_system,
+                        "user_template": chapter_template
+                    }
+                }
+
+                # Sauvegarder
+                try:
+                    if save_prompts(new_prompts):
+                        st.success("✅ Prompts sauvegardés dans configs/prompts.json")
+                        st.info("ℹ️ Les changements prendront effet lors de la prochaine génération. Rechargez le LLM pour appliquer immédiatement.")
+                    else:
+                        st.error("❌ Erreur lors de la sauvegarde")
+                except Exception as e:
+                    st.error(f"❌ Erreur: {e}")
+
+        with col2:
+            if st.button("🔄 Recharger LLM"):
+                st.cache_resource.clear()
+                st.success("✅ Cache LLM effacé")
+                st.info("ℹ️ Rechargez la page pour réinitialiser complètement")
+                st.rerun()
 
 
 if __name__ == "__main__":

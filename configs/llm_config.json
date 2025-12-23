@@ -1,0 +1,106 @@
+{
+  "//": "LLM Configuration for StoryBox IA",
+  "//": "This file contains all LLM-specific parameters for better control",
+  "//": "All parameters are model-agnostic and work with any Celeste-supported provider",
+  
+  "default": {
+    "max_tokens": null,
+    "temperature": 0.7,
+    "top_p": 0.9,
+    "repeat_penalty": 1.1,
+    "description": "Default parameters for all generation types"
+  },
+  
+  "generation_specific": {
+    "story_plan": {
+      "max_tokens": null,
+      "temperature": 0.7,
+      "description": "Parameters for story plan generation (null max_tokens = let model decide)"
+    },
+    "chapter": {
+      "max_tokens": null,
+      "temperature": 0.8,
+      "description": "Parameters for chapter generation (null max_tokens = let model decide)"
+    }
+  },
+  
+  "model_presets": {
+    "gemini-2.5-flash": {
+      "context_window": 8192,
+      "recommended_max_tokens": 4000,
+      "notes": "Good balance of speed and quality for storytelling"
+    },
+    "gpt-4o-mini": {
+      "context_window": 128000,
+      "recommended_max_tokens": 3000,
+      "notes": "Larger context window, good for complex stories"
+    },
+    "claude-3-5-sonnet": {
+      "context_window": 200000,
+      "recommended_max_tokens": 3500,
+      "notes": "Excellent for creative writing and complex narratives"
+    },
+    "mistral-large": {
+      "context_window": 32000,
+      "recommended_max_tokens": 2500,
+      "notes": "Good for structured storytelling"
+    }
+  },
+
+  "pricing": {
+    "//": "Pricing in USD per 1M tokens (input / output). Updated Dec 2024.",
+    "gemini-2.5-flash": {
+      "input_per_1m": 0.075,
+      "output_per_1m": 0.30,
+      "notes": "Google Gemini 2.5 Flash - Best value for speed"
+    },
+    "gemini-2.5-pro": {
+      "input_per_1m": 1.25,
+      "output_per_1m": 5.00,
+      "notes": "Google Gemini 2.5 Pro - Higher quality"
+    },
+    "gpt-4o-mini": {
+      "input_per_1m": 0.15,
+      "output_per_1m": 0.60,
+      "notes": "OpenAI GPT-4o Mini - Good balance"
+    },
+    "gpt-4o": {
+      "input_per_1m": 2.50,
+      "output_per_1m": 10.00,
+      "notes": "OpenAI GPT-4o - Premium quality"
+    },
+    "claude-3-5-sonnet-20241022": {
+      "input_per_1m": 3.00,
+      "output_per_1m": 15.00,
+      "notes": "Anthropic Claude 3.5 Sonnet - Best for creative writing"
+    },
+    "claude-3-5-haiku-20241022": {
+      "input_per_1m": 0.80,
+      "output_per_1m": 4.00,
+      "notes": "Anthropic Claude 3.5 Haiku - Fast and affordable"
+    },
+    "mistral-medium-latest": {
+      "input_per_1m": 2.75,
+      "output_per_1m": 8.10,
+      "notes": "Mistral Medium - Good quality, competitive pricing"
+    },
+    "mistral-large-latest": {
+      "input_per_1m": 3.00,
+      "output_per_1m": 9.00,
+      "notes": "Mistral Large - Best Mistral model"
+    },
+    "mistral-small-latest": {
+      "input_per_1m": 0.20,
+      "output_per_1m": 0.60,
+      "notes": "Mistral Small - Most affordable"
+    }
+  },
+  
+  "usage_tips": {
+    "max_tokens": "Set to null to let the model decide response length automatically",
+    "temperature": "Lower (0.3-0.7) for more deterministic output, higher (0.8-1.2) for more creativity",
+    "model_switching": "Just change the model_path in default.yaml - all other settings remain compatible",
+    "pricing": "Prices are estimates in USD per 1M tokens. Actual costs may vary. Check provider websites for latest pricing."
+  }
+}
+

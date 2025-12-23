@@ -2,15 +2,39 @@
 
 ## 🚧 En Cours (V0.2)
 
-- [ ] Attendre la release de Celeste TTS via Gradium
-- [ ] Intégrer Celeste TTS pour la narration
-- [ ] Tester le pipeline complet cloud (STT + LLM + TTS)
+### Déjà Fait ✅
+- [x] Créer webapp Streamlit pour tester la pipeline de génération d'histoire
+  - [x] Interface web complète avec 3 onglets (Plan, Chapitres, Histoire complète)
+  - [x] Makefile pour lancer facilement (`make webapp`)
+  - [x] Fix: Problème de troncature JSON résolu (max_tokens=4000)
+  - [x] Fix: Event loop handling pour Streamlit
+  - [x] Prompts configurables via `configs/prompts.json`
+  - [x] Validation Pydantic pour JSON structuré
+
+### À Faire Maintenant
+- [ ] **Webapp: Ajouter métriques de performance**
+  - [ ] Afficher tokens utilisés par chapitre/plan
+  - [ ] Afficher temps de génération
+  - [ ] Afficher coût estimé par génération
+  - [ ] Afficher erreurs Celeste (dépassement tokens, erreurs API, etc.)
+
+- [ ] **Webapp: Éditeur de prompts intégré**
+  - [ ] Implémenter l'onglet "Prompts" (code disponible dans `webapp/TODO_PROMPTS.md`)
+  - [ ] Pouvoir modifier system prompt + user prompt dans l'interface
+  - [ ] Réglage du nombre de chapitres dynamique
+
+- [ ] **Intégrer Celeste TTS** pour la narration
+  - Celeste TTS est disponible et fonctionnel
+  - À intégrer dans le pipeline
+
+- [ ] **Ajouter Gradium STT**
+  - API key configurée en .env: `GRADIUM_API_KEY`
+  - Doc Swagger disponible: `/Users/maxence/Documents/PYTHON/swagger/gradium_swagger.json`
+  - Note: Pour TTS, utiliser Celeste (qui supporte aussi Gradium)
 
 ## 📋 Prochaines Fonctionnalités
 
-### Pour Developpement
-- [ ] Créer, tester et déployer une webapp sur une branche concurrente (streamlit ?) pour tester la pipeline de génération d'histoire
-  - Déploiement local dans un premier temps (docker)
+
 
 - Utiliser le mode streaming des IA pour recevoir les données plus rapidement ?
 

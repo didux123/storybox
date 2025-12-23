@@ -138,10 +138,25 @@ class CelesteLLM:
             self.logger.warning(f"Prompts config not found, using defaults: {e}")
             self.prompts_config = {}
 
+        # Load LLM-specific configuration
+        try:
+            self.llm_specific_config = self._load_llm_config()
+            self.logger.info("LLM configuration loaded from configs/llm_config.json")
+        except FileNotFoundError as e:
+            self.logger.warning(f"LLM config not found, using defaults: {e}")
+            self.llm_specific_config = {}
+
         self.logger.info("Celeste LLM initialized successfully")
         self.logger.info(f"Model: {self.model_id}")
         self.logger.info(f"Temperature: {config.temperature}")
         self.logger.info(f"Max tokens: {config.context_tokens}")
+        
+        # Log model-specific info if available
+        if self.llm_specific_config and 'model_presets' in self.llm_specific_config:
+            model_info = self.llm_specific_config['model_presets'].get(self.model_id, {})
+            if model_info:
+                self.logger.info(f"Model context window: {model_info.get('context_window', 'Unknown')}")
+                self.logger.info(f"Recommended max tokens: {model_info.get('recommended_max_tokens', 'Unknown')}")
 
     def _extract_model_id(self, model_path: str) -> str:
         """
@@ -166,6 +181,25 @@ class CelesteLLM:
             return default_model
 
         return model_path
+
+    def _load_llm_config(self) -> Dict[str, Any]:
+        """
+        Load LLM-specific configuration from JSON file
+
+        Returns:
+            Dictionary with LLM configuration data
+
+        Raises:
+            FileNotFoundError: If llm_config.json doesn't exist
+        """
+        project_root = Path(__file__).parent.parent.parent
+        config_file = project_root / "configs" / "llm_config.json"
+
+        if not config_file.exists():
+            raise FileNotFoundError(f"LLM config not found: {config_file}")
+
+        with open(config_file, 'r', encoding='utf-8') as f:
+            return json.load(f)
 
     def _detect_provider(self, model_id: str):
         """
@@ -261,11 +295,15 @@ class CelesteLLM:
             self.logger.warning("Empty prompt provided")
             return None
 
-        self.logger.debug(f"Generating with prompt: {prompt[:50]}...")
+        self.logger.debug(f"Generating with prompt: {prompt[:100]}...")
+        self.logger.info(f"Generation params: max_tokens={max_tokens}, temperature={temperature or self.config.temperature}")
 
         with TimingContext("llm_generation", log_metric=True):
             try:
                 client = self._get_client()
+
+                # Generate with Celeste - add detailed logging
+                self.logger.debug(f"Calling Celeste generate with params: max_tokens={max_tokens}, temperature={temperature or self.config.temperature}")
 
                 # Generate with Celeste
                 response = await client.generate(
@@ -276,11 +314,19 @@ class CelesteLLM:
                     # Celeste handles this automatically
                 )
 
-                output = response.content.strip()
+                output = response.content.strip() if response and response.content else ""
 
                 if output:
                     self.logger.info(f"Generated {len(output)} chars")
                     log_metric("llm_chars_generated", len(output))
+
+                    # Log first 200 chars for debugging
+                    self.logger.debug(f"Generated text preview: {output[:200]}...")
+                    
+                    # Check if response ends with complete sentence
+                    if not any(output.rstrip().endswith(punct) for punct in ['.', '!', '?', '...']):
+                        self.logger.warning(f"INCOMPLETE RESPONSE: Text does not end with proper punctuation")
+                        self.logger.warning(f"Last 50 chars: '{output[-50:]}'")
 
                     # Estimate tokens (rough: 1 token ≈ 4 chars)
                     estimated_tokens = len(output) / 4
@@ -289,6 +335,8 @@ class CelesteLLM:
                     return output
                 else:
                     self.logger.warning("No output from LLM")
+                    if response:
+                        self.logger.debug(f"Response object: {vars(response)}")
                     return None
 
             except Exception as e:
@@ -329,15 +377,23 @@ class CelesteLLM:
         )
 
         with TimingContext("story_plan_generation", log_metric=True):
-            # Generate text with standard method
+            # Get max_tokens from configuration (model-agnostic)
+            plan_max_tokens = self._get_max_tokens_for_generation('plan')
+            plan_temperature = self._get_temperature_for_generation('plan')
+            
+            self.logger.info(f"Generating story plan with max_tokens={plan_max_tokens}, temperature={plan_temperature}")
+            
             output = await self.generate(
                 prompt,
-                max_tokens=4000,  # High value to avoid truncation
-                temperature=0.7   # Balanced creativity
+                max_tokens=plan_max_tokens,  # Use configured max_tokens (None = let model decide)
+                temperature=plan_temperature  # Use configured temperature
             )
 
             if not output:
                 return None
+
+            # Log raw output for debugging
+            self.logger.debug(f"Raw LLM output (first 500 chars): {output[:500]}")
 
             # Parse JSON output with Pydantic validation
             try:
@@ -356,8 +412,25 @@ class CelesteLLM:
                         if json_match:
                             json_str = json_match.group(0)
 
-                # Parse with Pydantic
-                plan_data = StoryPlanResponse.model_validate_json(json_str)
+                # Additional cleaning for common issues
+                # Remove any text before or after JSON
+                json_str = json_str.strip()
+                
+                # Try to parse with Pydantic
+                try:
+                    plan_data = StoryPlanResponse.model_validate_json(json_str)
+                except Exception as parse_error:
+                    # If Pydantic fails, try more aggressive cleaning
+                    self.logger.warning(f"Pydantic parsing failed, trying fallback: {parse_error}")
+                    
+                    # Try to extract JSON more aggressively
+                    json_match = re.search(r'"chapters"\s*:\s*\[.*\]', json_str, re.DOTALL)
+                    if json_match:
+                        # Try to reconstruct valid JSON
+                        json_str = "{" + json_match.group(0) + "}"
+                        plan_data = StoryPlanResponse.model_validate_json(json_str)
+                    else:
+                        raise parse_error
 
                 # Convert to StoryPlan
                 chapters = [
@@ -375,8 +448,52 @@ class CelesteLLM:
 
             except Exception as e:
                 self.logger.error(f"Story plan parsing error: {e}", exc_info=True)
-                self.logger.debug(f"LLM output: {output[:500]}")
+                self.logger.debug(f"Full LLM output: {output}")
                 return None
+
+    def _get_max_tokens_for_generation(self, generation_type: str) -> Optional[int]:
+        """
+        Get max_tokens configuration for specific generation type
+
+        Args:
+            generation_type: Type of generation ('plan' or 'chapter')
+
+        Returns:
+            max_tokens value or None if not specified (let model decide)
+        """
+        if not self.llm_specific_config or 'generation_specific' not in self.llm_specific_config:
+            return None
+
+        gen_config = self.llm_specific_config['generation_specific']
+        
+        if generation_type == 'plan' and 'story_plan' in gen_config:
+            return gen_config['story_plan'].get('max_tokens')
+        elif generation_type == 'chapter' and 'chapter' in gen_config:
+            return gen_config['chapter'].get('max_tokens')
+        
+        return None
+
+    def _get_temperature_for_generation(self, generation_type: str) -> float:
+        """
+        Get temperature configuration for specific generation type
+
+        Args:
+            generation_type: Type of generation ('plan' or 'chapter')
+
+        Returns:
+            temperature value, falling back to config.temperature if not specified
+        """
+        if not self.llm_specific_config or 'generation_specific' not in self.llm_specific_config:
+            return self.config.temperature
+
+        gen_config = self.llm_specific_config['generation_specific']
+        
+        if generation_type == 'plan' and 'story_plan' in gen_config:
+            return gen_config['story_plan'].get('temperature', self.config.temperature)
+        elif generation_type == 'chapter' and 'chapter' in gen_config:
+            return gen_config['chapter'].get('temperature', self.config.temperature)
+        
+        return self.config.temperature
 
     def _get_plan_prompt(self) -> str:
         """
@@ -426,13 +543,40 @@ JSON :"""
             StoryPlan or None if parsing failed
         """
         try:
-            # Find JSON in output (might have extra text)
-            json_match = re.search(r'\{[\s\S]*\}', output)
-            if not json_match:
+            # Log raw output for debugging
+            self.logger.debug(f"Parsing story plan from output: {output[:500]}...")
+
+            # Try multiple strategies to extract JSON
+            json_str = None
+
+            # Strategy 1: Look for markdown code blocks
+            if '```' in output:
+                json_match = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', output, re.DOTALL)
+                if json_match:
+                    json_str = json_match.group(1).strip()
+
+            # Strategy 2: Look for raw JSON object
+            if not json_str:
+                json_match = re.search(r'\{[\s\S]*\}', output)
+                if json_match:
+                    json_str = json_match.group(0)
+
+            # Strategy 3: Look for chapters array specifically
+            if not json_str:
+                json_match = re.search(r'"chapters"\s*:\s*\[.*\]', output, re.DOTALL)
+                if json_match:
+                    json_str = "{" + json_match.group(0) + "}"
+
+            if not json_str:
                 self.logger.error("No JSON found in LLM output")
                 return None
 
-            json_str = json_match.group(0)
+            # Clean JSON string
+            json_str = json_str.strip()
+            
+            # Remove any trailing commas or incomplete parts
+            json_str = re.sub(r',\s*\}\s*$', '}', json_str)
+            json_str = re.sub(r',\s*\]\s*$', ']', json_str)
 
             # Parse JSON
             data = json.loads(json_str)
@@ -442,14 +586,32 @@ JSON :"""
                 self.logger.error("Missing 'chapters' key in JSON")
                 return None
 
+            # Validate chapters structure
+            chapters = []
+            for i, chapter in enumerate(data['chapters']):
+                if not isinstance(chapter, dict):
+                    self.logger.warning(f"Invalid chapter format at index {i}")
+                    continue
+                
+                # Ensure required fields
+                if 'number' not in chapter or 'title' not in chapter or 'summary' not in chapter:
+                    self.logger.warning(f"Missing required fields in chapter {i}")
+                    continue
+                    
+                chapters.append(chapter)
+
+            if not chapters:
+                self.logger.error("No valid chapters found in JSON")
+                return None
+
             # Create StoryPlan
-            plan = StoryPlan(theme=theme, chapters=data['chapters'])
+            plan = StoryPlan(theme=theme, chapters=chapters)
 
             return plan
 
         except json.JSONDecodeError as e:
             self.logger.error(f"JSON parsing error: {e}")
-            self.logger.debug(f"LLM output: {output}")
+            self.logger.debug(f"Failed to parse JSON: {output}")
             return None
         except Exception as e:
             self.logger.error(f"Plan parsing error: {e}", exc_info=True)
@@ -506,17 +668,26 @@ JSON :"""
         )
 
         with TimingContext(f"chapter_{chapter_num}_generation", log_metric=True):
-            # Generate chapter
+            # Get max_tokens from configuration (model-agnostic)
+            chapter_max_tokens = self._get_max_tokens_for_generation('chapter')
+            chapter_temperature = self._get_temperature_for_generation('chapter')
+            
+            self.logger.info(f"Generating chapter {chapter_num} with max_tokens={chapter_max_tokens}, temperature={chapter_temperature}")
+            
             output = await self.generate(
                 prompt,
-                max_tokens=800,  # ~300 words * ~2.5 tokens per word
-                temperature=0.8  # More creative for storytelling
+                max_tokens=chapter_max_tokens,  # Use configured max_tokens (None = let model decide)
+                temperature=chapter_temperature  # Use configured temperature
             )
 
             if output:
                 word_count = len(output.split())
                 self.logger.info(f"Generated chapter {chapter_num}: {word_count} words")
                 log_metric(f"chapter_{chapter_num}_words", word_count)
+                
+                # Log preview for debugging
+                self.logger.debug(f"Chapter {chapter_num} preview: {output[:200]}...")
+                
                 return output
             else:
                 return None
