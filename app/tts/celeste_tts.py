@@ -48,8 +48,7 @@ class CelesteTTS:
     async def generate_speech(
         self,
         text: str,
-        voice_id: Optional[str] = None,
-        speed: float = 1.0,
+        voice: Optional[str] = None,
         response_format: str = "mp3_44100_128"
     ) -> Optional[bytes]:
         """
@@ -57,16 +56,19 @@ class CelesteTTS:
 
         Args:
             text: Text to convert to speech
-            voice_id: Gradium voice ID (if None, uses default)
-            speed: Speech speed multiplier (1.0 = normal)
+            voice: Gradium voice name (e.g., "Elise", "Alice", "Eva", "Mia")
             response_format: Audio format (e.g., "mp3_44100_128")
 
         Returns:
             Audio bytes or None if generation failed
 
+        Note:
+            Speed parameter is not currently supported due to Celeste/Gradium compatibility issues.
+            Future implementation may use Gradium's padding_bonus parameter.
+
         Example:
             >>> tts = CelesteTTS()
-            >>> audio = await tts.generate_speech("Hello world", voice_id="my-voice-id")
+            >>> audio = await tts.generate_speech("Hello world", voice="Elise")
             >>> with open("output.mp3", "wb") as f:
             ...     f.write(audio)
         """
@@ -75,25 +77,24 @@ class CelesteTTS:
             return None
 
         try:
-            self.logger.info(f"Generating speech for {len(text)} characters with voice={voice_id}, speed={speed}")
+            self.logger.info(f"Generating speech for {len(text)} characters with voice={voice}")
 
-            # Build parameters
+            # Build parameters for Gradium via Celeste
             params = {
-                "prompt": text,
-                "speed": speed,
+                "text": text,
                 "response_format": response_format
             }
 
-            # Add voice_id if provided
-            if voice_id:
-                params["voice"] = voice_id
+            # Add voice if provided
+            if voice:
+                params["voice"] = voice
 
             # Generate speech
             response = await self.client.generate(**params)
 
-            # Extract audio bytes from response
-            if hasattr(response, 'content') and hasattr(response.content, 'bytes'):
-                audio_bytes = response.content.bytes
+            # Extract audio bytes from response.content.data
+            if hasattr(response, 'content') and hasattr(response.content, 'data'):
+                audio_bytes = response.content.data
                 self.logger.info(f"Generated {len(audio_bytes)} bytes of audio")
                 return audio_bytes
             else:
@@ -108,8 +109,7 @@ class CelesteTTS:
         self,
         text: str,
         output_path: str,
-        voice_id: Optional[str] = None,
-        speed: float = 1.0,
+        voice: Optional[str] = None,
         response_format: str = "mp3_44100_128"
     ) -> bool:
         """
@@ -118,8 +118,7 @@ class CelesteTTS:
         Args:
             text: Text to convert to speech
             output_path: Path to save audio file
-            voice_id: Gradium voice ID
-            speed: Speech speed multiplier
+            voice: Gradium voice name (e.g., "Elise", "Alice")
             response_format: Audio format
 
         Returns:
@@ -130,10 +129,10 @@ class CelesteTTS:
             >>> success = await tts.generate_to_file(
             ...     "Hello world",
             ...     "output.mp3",
-            ...     voice_id="my-voice-id"
+            ...     voice="Elise"
             ... )
         """
-        audio_bytes = await self.generate_speech(text, voice_id, speed, response_format)
+        audio_bytes = await self.generate_speech(text, voice, response_format)
 
         if not audio_bytes:
             return False
@@ -175,8 +174,7 @@ class CelesteTTS:
 # Synchronous wrapper for easier use in non-async contexts
 def generate_speech_sync(
     text: str,
-    voice_id: Optional[str] = None,
-    speed: float = 1.0,
+    voice: Optional[str] = None,
     config: Optional[Config] = None
 ) -> Optional[bytes]:
     """
@@ -184,25 +182,23 @@ def generate_speech_sync(
 
     Args:
         text: Text to convert to speech
-        voice_id: Gradium voice ID
-        speed: Speech speed multiplier
+        voice: Gradium voice name (e.g., "Elise", "Alice")
         config: Optional configuration
 
     Returns:
         Audio bytes or None if failed
 
     Example:
-        >>> audio = generate_speech_sync("Hello world", voice_id="my-voice")
+        >>> audio = generate_speech_sync("Hello world", voice="Elise")
     """
     tts = CelesteTTS(config)
-    return asyncio.run(tts.generate_speech(text, voice_id, speed))
+    return asyncio.run(tts.generate_speech(text, voice))
 
 
 def generate_to_file_sync(
     text: str,
     output_path: str,
-    voice_id: Optional[str] = None,
-    speed: float = 1.0,
+    voice: Optional[str] = None,
     config: Optional[Config] = None
 ) -> bool:
     """
@@ -211,15 +207,14 @@ def generate_to_file_sync(
     Args:
         text: Text to convert to speech
         output_path: Path to save audio
-        voice_id: Gradium voice ID
-        speed: Speech speed multiplier
+        voice: Gradium voice name (e.g., "Elise", "Alice")
         config: Optional configuration
 
     Returns:
         True if successful
 
     Example:
-        >>> success = generate_to_file_sync("Hello", "out.mp3", voice_id="my-voice")
+        >>> success = generate_to_file_sync("Hello", "out.mp3", voice="Elise")
     """
     tts = CelesteTTS(config)
-    return asyncio.run(tts.generate_to_file(text, output_path, voice_id, speed))
+    return asyncio.run(tts.generate_to_file(text, output_path, voice))

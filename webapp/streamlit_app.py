@@ -229,45 +229,44 @@ def main():
             help="Permet de générer et écouter l'audio des chapitres"
         )
 
-        voice_id = None
-        tts_speed = 1.0
+        voice = None
 
         if enable_tts:
-            # Sélection de la voix
+            # Sélection de la voix Gradium (voix françaises)
             voice_preset = st.selectbox(
-                "Choix de la voix",
+                "Choix de la voix Gradium",
                 options=[
-                    "Claire (féminine) - zIGaffB0kKEBG_8u",
-                    "Voix 2 - IB53xJtufx1sbfbt",
-                    "Voix 3 - s0PhgjzOTRD5wo5L",
-                    "Voix 4 - rIYDMY3dLccdauWA",
-                    "Personnalisée"
+                    "Elise (féminine française)",
+                    "Alice (féminine française)",
+                    "Eva (féminine)",
+                    "Mia (féminine)",
+                    "Voix personnalisée (pour tests futurs)"
                 ],
                 index=0,
-                help="Sélectionnez une voix prédéfinie ou entrez un ID personnalisé"
+                help="Voix Gradium françaises disponibles via Celeste"
             )
 
-            # Extraire l'ID de voix ou permettre la saisie manuelle
-            if voice_preset == "Personnalisée":
-                voice_id = st.text_input(
-                    "Voice ID Gradium personnalisé",
+            # Mapping des voix Gradium
+            voice_mapping = {
+                "Elise (féminine française)": "Elise",
+                "Alice (féminine française)": "Alice",
+                "Eva (féminine)": "Eva",
+                "Mia (féminine)": "Mia"
+            }
+
+            # Extraire le nom de voix ou permettre la saisie manuelle
+            if voice_preset == "Voix personnalisée (pour tests futurs)":
+                voice = st.text_input(
+                    "Nom de voix personnalisé",
                     value="",
-                    placeholder="Entrez votre voice ID Gradium",
-                    help="Entrez l'ID de votre voix Gradium personnalisée"
+                    placeholder="Ex: Emma, Kent, Leo...",
+                    help="Entrez un nom de voix Gradium"
                 )
+                st.caption("⚠️ Les voix custom peuvent ne pas être supportées par Celeste actuellement")
             else:
-                # Extraire l'ID depuis la sélection (format: "Nom - ID")
-                voice_id = voice_preset.split(" - ")[-1]
-                st.caption(f"🎤 Voice ID: `{voice_id}`")
-
-            tts_speed = st.slider(
-                "Vitesse de lecture",
-                min_value=0.5,
-                max_value=2.0,
-                value=1.0,
-                step=0.1,
-                help="Vitesse de narration (1.0 = normale)"
-            )
+                # Utiliser le nom de la voix Gradium
+                voice = voice_mapping[voice_preset]
+                st.caption(f"🎤 Voix sélectionnée: **{voice}**")
 
         # Mapper la longueur
         length_map = {
@@ -529,8 +528,7 @@ def main():
                                                 with st.spinner("Génération audio en cours..."):
                                                     audio_bytes = run_async(tts.generate_speech(
                                                         chapter_text,
-                                                        voice_id=voice_id if voice_id else None,
-                                                        speed=tts_speed
+                                                        voice=voice if voice else None
                                                     ))
 
                                                     if audio_bytes:
@@ -594,8 +592,7 @@ def main():
                                     with st.spinner("Génération audio en cours..."):
                                         audio_bytes = run_async(tts.generate_speech(
                                             ch_data['text'],
-                                            voice_id=voice_id if voice_id else None,
-                                            speed=tts_speed
+                                            voice=voice if voice else None
                                         ))
 
                                         if audio_bytes:
@@ -785,8 +782,7 @@ def main():
                                     with st.spinner("Génération audio de l'histoire complète en cours... (cela peut prendre du temps)"):
                                         audio_bytes = run_async(tts.generate_speech(
                                             story_text,
-                                            voice_id=voice_id if voice_id else None,
-                                            speed=tts_speed
+                                            voice=voice if voice else None
                                         ))
 
                                         if audio_bytes:
