@@ -666,7 +666,8 @@ JSON :"""
             cumulative_context=cumulative_context or "C'est le début de l'histoire.",
             story_plan=plan_text,
             min_words=min_words,
-            max_words=max_words
+            max_words=max_words,
+            num_chapters=len(plan.chapters)  # Total number of chapters for context
         )
 
         with TimingContext(f"chapter_{chapter_num}_generation", log_metric=True):
@@ -707,6 +708,8 @@ JSON :"""
 
         # Fallback to default
         return """Écris le chapitre {chapter_num} intitulé "{chapter_title}".
+
+Il y a en tout {num_chapters} chapitres donc il faut bien que ça suive la trame de l'histoire. Si c'est un des derniers chapitres, alors il faut tendre vers la fin de l'histoire.
 
 Contexte cumulatif des chapitres précédents :
 {cumulative_context}
