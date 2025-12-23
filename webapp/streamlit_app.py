@@ -235,9 +235,9 @@ def main():
         if enable_tts:
             voice_id = st.text_input(
                 "Voice ID Gradium",
-                value="",
+                value="zIGaffB0kKEBG_8u",
                 placeholder="Entrez votre voice ID Gradium",
-                help="ID de la voix Gradium à utiliser pour la narration (optionnel, utilise la voix par défaut si vide)"
+                help="ID de la voix Gradium à utiliser pour la narration (défaut: Claire - voix féminine)"
             )
 
             tts_speed = st.slider(
