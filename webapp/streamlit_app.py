@@ -233,12 +233,32 @@ def main():
         tts_speed = 1.0
 
         if enable_tts:
-            voice_id = st.text_input(
-                "Voice ID Gradium",
-                value="zIGaffB0kKEBG_8u",
-                placeholder="Entrez votre voice ID Gradium",
-                help="ID de la voix Gradium à utiliser pour la narration (défaut: Claire - voix féminine)"
+            # Sélection de la voix
+            voice_preset = st.selectbox(
+                "Choix de la voix",
+                options=[
+                    "Claire (féminine) - zIGaffB0kKEBG_8u",
+                    "Voix 2 - IB53xJtufx1sbfbt",
+                    "Voix 3 - s0PhgjzOTRD5wo5L",
+                    "Voix 4 - rIYDMY3dLccdauWA",
+                    "Personnalisée"
+                ],
+                index=0,
+                help="Sélectionnez une voix prédéfinie ou entrez un ID personnalisé"
             )
+
+            # Extraire l'ID de voix ou permettre la saisie manuelle
+            if voice_preset == "Personnalisée":
+                voice_id = st.text_input(
+                    "Voice ID Gradium personnalisé",
+                    value="",
+                    placeholder="Entrez votre voice ID Gradium",
+                    help="Entrez l'ID de votre voix Gradium personnalisée"
+                )
+            else:
+                # Extraire l'ID depuis la sélection (format: "Nom - ID")
+                voice_id = voice_preset.split(" - ")[-1]
+                st.caption(f"🎤 Voice ID: `{voice_id}`")
 
             tts_speed = st.slider(
                 "Vitesse de lecture",
