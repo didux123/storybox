@@ -267,7 +267,7 @@ def main():
 
                     try:
                         # Générer le plan
-                        plan = run_async(llm.generate_story_plan(user_prompt, num_chapters=num_chapters))
+                        plan = run_async(llm.generate_story_plan(user_prompt, num_chapters=num_chapters, temperature=temperature))
 
                         generation_time = time.time() - start_time
 
@@ -397,7 +397,8 @@ def main():
                                 chapter_num=chapter_num,
                                 cumulative_context=cumulative_context,
                                 min_words=min_words,
-                                max_words=max_words
+                                max_words=max_words,
+                                temperature=temperature
                             ))
 
                             generation_time = time.time() - start_time
@@ -574,7 +575,8 @@ def main():
                                         chapter_num=ch_num,
                                         cumulative_context=cumulative_context,
                                         min_words=min_words,
-                                        max_words=max_words
+                                        max_words=max_words,
+                                        temperature=temperature
                                     ))
                                     generation_time = time.time() - start_time
 

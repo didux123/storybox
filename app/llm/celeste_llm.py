@@ -343,7 +343,7 @@ class CelesteLLM:
                 self.logger.error(f"LLM generation error: {e}", exc_info=True)
                 return None
 
-    async def generate_story_plan(self, theme: str, num_chapters: int = 10) -> Optional[StoryPlan]:
+    async def generate_story_plan(self, theme: str, num_chapters: int = 10, temperature: Optional[float] = None) -> Optional[StoryPlan]:
         """
         Generate a story plan with chapters
 
@@ -379,14 +379,15 @@ class CelesteLLM:
         with TimingContext("story_plan_generation", log_metric=True):
             # Get max_tokens from configuration (model-agnostic)
             plan_max_tokens = self._get_max_tokens_for_generation('plan')
-            plan_temperature = self._get_temperature_for_generation('plan')
-            
+            # Use parameter temperature if provided, otherwise use configured temperature
+            plan_temperature = temperature if temperature is not None else self._get_temperature_for_generation('plan')
+
             self.logger.info(f"Generating story plan with max_tokens={plan_max_tokens}, temperature={plan_temperature}")
-            
+
             output = await self.generate(
                 prompt,
                 max_tokens=plan_max_tokens,  # Use configured max_tokens (None = let model decide)
-                temperature=plan_temperature  # Use configured temperature
+                temperature=plan_temperature  # Use parameter or configured temperature
             )
 
             if not output:
@@ -623,7 +624,8 @@ JSON :"""
         chapter_num: int,
         cumulative_context: str = "",
         min_words: int = 150,
-        max_words: int = 300
+        max_words: int = 300,
+        temperature: Optional[float] = None
     ) -> Optional[str]:
         """
         Generate a single chapter
@@ -670,14 +672,15 @@ JSON :"""
         with TimingContext(f"chapter_{chapter_num}_generation", log_metric=True):
             # Get max_tokens from configuration (model-agnostic)
             chapter_max_tokens = self._get_max_tokens_for_generation('chapter')
-            chapter_temperature = self._get_temperature_for_generation('chapter')
-            
+            # Use parameter temperature if provided, otherwise use configured temperature
+            chapter_temperature = temperature if temperature is not None else self._get_temperature_for_generation('chapter')
+
             self.logger.info(f"Generating chapter {chapter_num} with max_tokens={chapter_max_tokens}, temperature={chapter_temperature}")
-            
+
             output = await self.generate(
                 prompt,
                 max_tokens=chapter_max_tokens,  # Use configured max_tokens (None = let model decide)
-                temperature=chapter_temperature  # Use configured temperature
+                temperature=chapter_temperature  # Use parameter or configured temperature
             )
 
             if output:
