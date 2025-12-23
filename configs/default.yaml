@@ -30,38 +30,10 @@ llm:
   top_p: 0.9
   repeat_penalty: 1.1
 
-  # Prompt templates
+  # Prompt templates (now managed in configs/prompts.json - editable via Streamlit)
   prompts:
-    plan: |
-      Génère un plan de 10 chapitres cohérents sur le thème suivant : {theme}.
-      Chaque chapitre doit contenir :
-      - Un titre court et accrocheur
-      - Un résumé en 1 phrase
-
-      Réponds au format JSON suivant :
-      {{
-        "chapters": [
-          {{"number": 1, "title": "...", "summary": "..."}},
-          ...
-        ]
-      }}
-
-    chapter: |
-      Écris le chapitre n°{chapter_num} intitulé "{chapter_title}".
-
-      Contexte cumulatif des chapitres précédents :
-      {cumulative_context}
-
-      Plan global de l'histoire :
-      {story_plan}
-
-      Consignes :
-      - 150 à 300 mots
-      - Paragraphes courts pour la lecture à voix haute
-      - Cohérent avec le contexte et le plan
-      - Ton narratif adapté à un jeune public
-
-      Écris uniquement le contenu du chapitre, sans répéter le titre.
+    plan: null  # Loaded from prompts.json
+    chapter: null  # Loaded from prompts.json
 
 # Text-to-Speech (Piper)
 tts:
@@ -111,7 +83,7 @@ logging:
 
 # Story generation
 story:
-  num_chapters: 10
+  num_chapters: 5  # Default number of chapters (editable in Streamlit sidebar)
   chapter_min_words: 150
   chapter_max_words: 300
   context_summary_sentences: 3  # sentences per chapter in cumulative context
