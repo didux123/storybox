@@ -22,6 +22,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app.llm.celeste_llm import CelesteLLM, StoryPlan
+from app.tts.celeste_tts import CelesteTTS
 from app.utils.config import get_config
 from webapp.utils.prompt_editor import load_prompts, save_prompts
 
@@ -151,6 +152,23 @@ def get_llm():
         return None
 
 
+@st.cache_resource
+def get_tts():
+    """Initialiser et cacher Celeste TTS"""
+    try:
+        config = get_config()
+        tts = CelesteTTS(config)
+        return tts
+    except Exception as e:
+        st.error(f"❌ Erreur initialisation TTS: {e}")
+        st.info("""
+        **Vérifiez votre configuration:**
+        1. Celeste 0.3.5+ installé avec support Gradium
+        2. GRADIUM_API_KEY dans .env (si nécessaire)
+        """)
+        return None
+
+
 def main():
     """Application principale"""
 
@@ -199,6 +217,37 @@ def main():
             value="Moyen (150-250 mots)",
             help="Longueur approximative de chaque chapitre"
         )
+
+        st.divider()
+
+        # Configuration TTS
+        st.subheader("🔊 Paramètres TTS (Narration)")
+
+        enable_tts = st.checkbox(
+            "Activer la narration audio",
+            value=False,
+            help="Permet de générer et écouter l'audio des chapitres"
+        )
+
+        voice_id = None
+        tts_speed = 1.0
+
+        if enable_tts:
+            voice_id = st.text_input(
+                "Voice ID Gradium",
+                value="",
+                placeholder="Entrez votre voice ID Gradium",
+                help="ID de la voix Gradium à utiliser pour la narration (optionnel, utilise la voix par défaut si vide)"
+            )
+
+            tts_speed = st.slider(
+                "Vitesse de lecture",
+                min_value=0.5,
+                max_value=2.0,
+                value=1.0,
+                step=0.1,
+                help="Vitesse de narration (1.0 = normale)"
+            )
 
         # Mapper la longueur
         length_map = {
@@ -449,6 +498,26 @@ def main():
                                 st.success(f"✅ Chapitre {chapter_num} généré")
                                 st.markdown(f"### Chapitre {chapter_num}: {chapter_info['title']}")
                                 st.markdown(chapter_text)
+
+                                # Bouton TTS pour écouter le chapitre
+                                if enable_tts:
+                                    col_tts1, col_tts2 = st.columns([1, 4])
+                                    with col_tts1:
+                                        if st.button(f"🔊 Écouter le chapitre {chapter_num}", key=f"tts_new_{chapter_num}"):
+                                            tts = get_tts()
+                                            if tts:
+                                                with st.spinner("Génération audio en cours..."):
+                                                    audio_bytes = run_async(tts.generate_speech(
+                                                        chapter_text,
+                                                        voice_id=voice_id if voice_id else None,
+                                                        speed=tts_speed
+                                                    ))
+
+                                                    if audio_bytes:
+                                                        st.audio(audio_bytes, format='audio/mp3')
+                                                        st.success("✅ Audio généré!")
+                                                    else:
+                                                        st.error("❌ Échec de la génération audio")
                             else:
                                 st.error("❌ Échec de la génération")
 
@@ -496,6 +565,24 @@ def main():
                             st.caption(f"⏱️ Généré en {ch_data['time']:.1f}s | 📝 {word_count} mots")
 
                         st.markdown(ch_data['text'])
+
+                        # Bouton TTS pour écouter le chapitre
+                        if enable_tts:
+                            if st.button(f"🔊 Écouter", key=f"tts_prev_{ch_num}"):
+                                tts = get_tts()
+                                if tts:
+                                    with st.spinner("Génération audio en cours..."):
+                                        audio_bytes = run_async(tts.generate_speech(
+                                            ch_data['text'],
+                                            voice_id=voice_id if voice_id else None,
+                                            speed=tts_speed
+                                        ))
+
+                                        if audio_bytes:
+                                            st.audio(audio_bytes, format='audio/mp3')
+                                            st.success("✅ Audio généré!")
+                                        else:
+                                            st.error("❌ Échec de la génération audio")
 
     # Tab 3: Complete Story
     with tab3:
@@ -652,12 +739,41 @@ def main():
                         full_story += ch_data['text'] + "\n\n"
 
                     # Bouton download
-                    st.download_button(
-                        label="📥 Télécharger l'histoire (Markdown)",
-                        data=full_story,
-                        file_name=f"histoire_{int(time.time())}.md",
-                        mime="text/markdown"
-                    )
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.download_button(
+                            label="📥 Télécharger l'histoire (Markdown)",
+                            data=full_story,
+                            file_name=f"histoire_{int(time.time())}.md",
+                            mime="text/markdown"
+                        )
+
+                    # Bouton TTS pour écouter toute l'histoire
+                    if enable_tts:
+                        with col2:
+                            if st.button("🔊 Écouter toute l'histoire", type="secondary"):
+                                tts = get_tts()
+                                if tts:
+                                    # Combiner tout le texte des chapitres
+                                    story_text = ""
+                                    for ch_num in range(1, total_chapters + 1):
+                                        ch_info = plan.chapters[ch_num - 1]
+                                        ch_data = chapters_gen[ch_num]
+                                        story_text += f"Chapitre {ch_num}: {ch_info['title']}. "
+                                        story_text += ch_data['text'] + " "
+
+                                    with st.spinner("Génération audio de l'histoire complète en cours... (cela peut prendre du temps)"):
+                                        audio_bytes = run_async(tts.generate_speech(
+                                            story_text,
+                                            voice_id=voice_id if voice_id else None,
+                                            speed=tts_speed
+                                        ))
+
+                                        if audio_bytes:
+                                            st.audio(audio_bytes, format='audio/mp3')
+                                            st.success("✅ Audio de l'histoire complète généré!")
+                                        else:
+                                            st.error("❌ Échec de la génération audio")
 
     # Tab 4: Prompt Editor
     with tab4:
