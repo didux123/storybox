@@ -1,36 +1,85 @@
 # StoryBox - TODO & Roadmap
 
-## 🚧 En Cours (V0.2)
+## ✅ V0.2 - TTS Integration (Terminée!)
+
+### 🎉 Session du 25 décembre 2024
+**Travail effectué:**
+1. ✅ Fix des paramètres Streamlit
+   - Résolution bug: nombre de chapitres toujours à 10 → maintenant configurable
+   - Ajout support température dans génération (plan + chapitres)
+   - Ajout variable `{num_chapters}` dans prompts pour meilleure cohérence narrative
+
+2. ✅ Intégration TTS complète avec Gradium
+   - Tentative initiale avec Celeste → problèmes de compatibilité
+   - **Solution finale:** API Gradium directe (module `GradiumTTS`)
+   - Support complet des IDs de voix personnalisés fournis par l'utilisateur
+   - Contrôle de vitesse fonctionnel (padding_bonus)
+   - Tests réussis: 391KB audio généré (voix Claire)
+
+3. ✅ Interface utilisateur TTS
+   - 4 voix françaises pré-configurées + option personnalisée
+   - Slider de vitesse avec 5 presets
+   - Boutons 🔊 pour chaque chapitre
+   - Bouton 🔊 pour histoire complète
+
+**Commits:**
+- `584411a` - fix: Remove hardcoded prompts from default.yaml
+- `c2b458d` - fix: Add temperature parameter support
+- `79849bf` - feat: Add num_chapters context to prompts
+- `794ece0` - feat: Add voice preset selection
+- `7575368` - feat: Implement Celeste TTS (abandonné)
+- `bfb846e` - **feat: Replace Celeste with direct Gradium API** ⭐
 
 ### Déjà Fait ✅
 - [x] Créer webapp Streamlit pour tester la pipeline de génération d'histoire
-  - [x] Interface web complète avec 3 onglets (Plan, Chapitres, Histoire complète)
+  - [x] Interface web complète avec 4 onglets (Plan, Chapitres, Histoire complète, Éditeur de prompts)
   - [x] Makefile pour lancer facilement (`make webapp`)
   - [x] Fix: Problème de troncature JSON résolu (max_tokens=4000)
   - [x] Fix: Event loop handling pour Streamlit
   - [x] Prompts configurables via `configs/prompts.json`
   - [x] Validation Pydantic pour JSON structuré
 
+- [x] **Éditeur de prompts intégré** ✅
+  - [x] Onglet "Prompts" fonctionnel
+  - [x] Modification system prompt + user prompt dans l'interface
+  - [x] Réglage du nombre de chapitres dynamique (slider 1-20)
+  - [x] Réglage de la température (slider 0.1-2.0)
+  - [x] Réglage de la longueur des chapitres (Court/Moyen/Long)
+
+- [x] **Intégration Gradium TTS** pour la narration ✅
+  - [x] Module `GradiumTTS` avec API directe (pas Celeste)
+  - [x] Support des IDs de voix personnalisés (4 voix françaises configurées)
+  - [x] Contrôle de vitesse via `padding_bonus` (-4.0 à +4.0)
+  - [x] Boutons 🔊 pour écouter chaque chapitre individuellement
+  - [x] Bouton 🔊 pour écouter toute l'histoire complète
+  - [x] Format WAV pour compatibilité optimale
+  - [x] GRADIUM_API_KEY configurée en .env
+
+### Configuration TTS Actuelle
+- **Voix disponibles:**
+  - Claire (zIGaffB0kKEBG_8u) - féminine française ⭐ par défaut
+  - Voix 2 (IB53xJtufx1sbfbt)
+  - Voix 3 (s0PhgjzOTRD5wo5L)
+  - Voix 4 (rIYDMY3dLccdauWA)
+  - + ID personnalisé pour tester d'autres voix
+
+- **Contrôle de vitesse:**
+  - Très rapide (-2.0), Rapide (-1.0), Normale (0.0), Lent (1.0), Très lent (2.0)
+
+## 🚧 En Cours (V0.3)
+
 ### À Faire Maintenant
 - [ ] **Webapp: Ajouter métriques de performance**
   - [ ] Afficher tokens utilisés par chapitre/plan
   - [ ] Afficher temps de génération
   - [ ] Afficher coût estimé par génération
-  - [ ] Afficher erreurs Celeste (dépassement tokens, erreurs API, etc.)
+  - [ ] Afficher erreurs API (dépassement tokens, erreurs, etc.)
 
-- [ ] **Webapp: Éditeur de prompts intégré**
-  - [ ] Implémenter l'onglet "Prompts" (code disponible dans `webapp/TODO_PROMPTS.md`)
-  - [ ] Pouvoir modifier system prompt + user prompt dans l'interface
-  - [ ] Réglage du nombre de chapitres dynamique
-
-- [ ] **Intégrer Celeste TTS** pour la narration
-  - Celeste TTS est disponible et fonctionnel
-  - À intégrer dans le pipeline
-
-- [ ] **Ajouter Gradium STT**
-  - API key configurée en .env: `GRADIUM_API_KEY`
-  - Doc Swagger disponible: `/Users/maxence/Documents/PYTHON/swagger/gradium_swagger.json`
-  - Note: Pour TTS, utiliser Celeste (qui supporte aussi Gradium)
+- [ ] **Ajouter Gradium STT** (Speech-to-Text)
+  - [ ] Module `GradiumSTT` similaire à `GradiumTTS`
+  - [ ] API key déjà configurée: `GRADIUM_API_KEY`
+  - [ ] Doc Swagger disponible: `/Users/maxence/Documents/PYTHON/swagger/Gradium.md`
+  - [ ] Intégration dans le pipeline pour enregistrement vocal
 
 ## 📋 Prochaines Fonctionnalités
 
@@ -217,6 +266,37 @@ combined = narration.overlay(music, loop=True)
 
 ---
 
-**Dernière mise à jour** : 19 décembre 2024
-**Version actuelle** : V0.1 (Cloud API de base)
-**Prochaine release** : V0.2 (avec Celeste TTS)
+**Dernière mise à jour** : 25 décembre 2024
+**Version actuelle** : V0.2 (TTS Gradium intégré)
+**Prochaine release** : V0.3 (Génération streaming + STT Gradium)
+
+## 📦 Modules Implémentés
+
+### LLM
+- **CelesteLLM** (`app/llm/celeste_llm.py`)
+  - Génération de plans d'histoires structurés (JSON)
+  - Génération de chapitres avec contexte cumulatif
+  - Support multi-providers (Gemini, Claude, GPT-4o via Celeste AI)
+  - Gestion de la température et des tokens
+
+### TTS (Text-to-Speech)
+- **GradiumTTS** (`app/tts/gradium_tts.py`) ✅
+  - API Gradium directe (pas via Celeste)
+  - Support voix personnalisées (IDs de voix)
+  - Contrôle de vitesse (padding_bonus -4.0 à +4.0)
+  - Format WAV optimisé
+
+- **CelesteTTS** (`app/tts/celeste_tts.py`) - Deprecated
+  - Remplacé par GradiumTTS pour meilleure compatibilité
+
+### STT (Speech-to-Text)
+- **PiperSTT** (`app/stt/piper_stt.py`) - À remplacer
+  - Actuellement pour Raspberry Pi (local)
+  - **TODO:** Remplacer par GradiumSTT pour cohérence
+
+### Webapp
+- **Streamlit UI** (`webapp/streamlit_app.py`)
+  - 4 onglets: Plan, Chapitres, Histoire complète, Éditeur de prompts
+  - Configuration TTS avec sélection de voix et vitesse
+  - Boutons audio pour écouter chapitres/histoire
+  - Édition en temps réel des prompts
