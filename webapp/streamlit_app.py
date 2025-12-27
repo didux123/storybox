@@ -23,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app.llm.celeste_llm import CelesteLLM, StoryPlan
 from app.tts.gradium_tts import GradiumTTS
+from app.stt.gradium_stt import GradiumSTT
 from app.utils.config import get_config
 from webapp.utils.prompt_editor import load_prompts, save_prompts
 
@@ -164,6 +165,26 @@ def get_tts():
         return tts
     except Exception as e:
         st.error(f"❌ Erreur initialisation TTS: {e}")
+        st.info("""
+        **Vérifiez votre configuration:**
+        1. Package gradium installé: `uv pip install gradium`
+        2. GRADIUM_API_KEY dans .env
+        """)
+        return None
+
+
+@st.cache_resource
+def get_stt():
+    """Initialiser et cacher Gradium STT"""
+    try:
+        config = get_config()
+        stt = GradiumSTT(config)
+        if not stt.client:
+            st.error("❌ STT non initialisé: GRADIUM_API_KEY manquante dans .env")
+            return None
+        return stt
+    except Exception as e:
+        st.error(f"❌ Erreur initialisation STT: {e}")
         st.info("""
         **Vérifiez votre configuration:**
         1. Package gradium installé: `uv pip install gradium`
@@ -342,12 +363,81 @@ def main():
     with tab1:
         st.header("Étape 1: Entrez votre prompt")
 
+        # Section STT - Enregistrement vocal
+        st.subheader("🎤 Option 1: Enregistrement vocal")
+
+        col_stt1, col_stt2 = st.columns([2, 1])
+
+        with col_stt1:
+            # Widget d'enregistrement audio
+            audio_input = st.audio_input(
+                "Enregistrez votre demande d'histoire",
+                help="Cliquez pour enregistrer votre voix et demander une histoire"
+            )
+
+        with col_stt2:
+            # Bouton de transcription
+            transcribe_btn = st.button(
+                "📝 Transcrire",
+                type="secondary",
+                disabled=audio_input is None,
+                help="Convertir l'audio en texte"
+            )
+
+        # Zone d'affichage de la transcription
+        if 'transcribed_text' not in st.session_state:
+            st.session_state['transcribed_text'] = ""
+
+        if transcribe_btn and audio_input is not None:
+            stt = get_stt()
+            if stt:
+                with st.spinner("Transcription en cours..."):
+                    try:
+                        # Lire les bytes audio
+                        audio_bytes = audio_input.read()
+
+                        # Transcrire
+                        start_time = time.time()
+                        transcribed_text = run_async(stt.transcribe(
+                            audio_bytes,
+                            input_format="wav"
+                        ))
+                        transcription_time = time.time() - start_time
+
+                        if transcribed_text:
+                            st.session_state['transcribed_text'] = transcribed_text
+                            st.success(f"✅ Transcription réussie en {transcription_time:.1f}s")
+                            st.info(f"**Texte transcrit:** {transcribed_text}")
+                        else:
+                            st.error("❌ Échec de la transcription")
+
+                    except Exception as e:
+                        st.error(f"❌ Erreur lors de la transcription: {e}")
+                        with st.expander("Détails de l'erreur"):
+                            st.exception(e)
+
+        # Afficher la transcription existante si disponible
+        if st.session_state['transcribed_text']:
+            with st.expander("📝 Dernière transcription"):
+                st.markdown(st.session_state['transcribed_text'])
+                if st.button("🗑️ Effacer la transcription"):
+                    st.session_state['transcribed_text'] = ""
+                    st.rerun()
+
+        st.divider()
+
         # Zone de saisie du prompt
+        st.subheader("✍️ Option 2: Saisie manuelle")
+
+        # Pré-remplir avec la transcription si disponible
+        default_prompt = st.session_state.get('transcribed_text', "")
+
         user_prompt = st.text_area(
             "Que voulez-vous raconter ? (parlez comme si vous parliez à l'appareil)",
+            value=default_prompt,
             placeholder="Exemple: Raconte-moi l'histoire d'un petit robot qui découvre les émotions",
             height=100,
-            help="Écrivez ce que vous diriez oralement à StoryBox"
+            help="Écrivez ce que vous diriez oralement à StoryBox, ou utilisez la transcription vocale ci-dessus"
         )
 
         col1, col2 = st.columns([1, 4])

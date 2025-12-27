@@ -1,8 +1,48 @@
 # StoryBox - TODO & Roadmap
 
+## ✅ V0.3 - STT Integration (Terminée!)
+
+### 🎉 Session du 25 décembre 2024 - Partie 2
+**Travail effectué:**
+
+1. ✅ **Intégration STT complète avec Gradium**
+   - Module `GradiumSTT` créé (`app/stt/gradium_stt.py`)
+   - API Gradium directe pour transcription audio
+   - Support des formats WAV, PCM, OPUS
+   - Méthodes async/sync pour flexibilité
+   - Auto-détection du format audio depuis l'extension de fichier
+
+2. ✅ **Interface utilisateur STT dans Streamlit**
+   - Widget d'enregistrement audio natif (st.audio_input)
+   - Bouton de transcription avec indicateur de progression
+   - Affichage du texte transcrit avec métriques (temps de transcription)
+   - Pré-remplissage automatique du champ de prompt avec le texte transcrit
+   - Option pour effacer la transcription
+   - Double option : enregistrement vocal OU saisie manuelle
+
+3. ✅ **Métriques de performance déjà implémentées**
+   - Affichage des tokens utilisés (input/output) par chapitre et plan
+   - Temps de génération affiché pour chaque opération
+   - Coût estimé calculé et affiché ($/génération)
+   - Dashboard global avec métriques cumulatives
+   - Tracking des erreurs API avec historique
+
+**Architecture:**
+```
+Utilisateur → 🎤 Enregistrement vocal → GradiumSTT → Texte transcrit
+                                                          ↓
+                                                    Génération plan (CelesteLLM)
+                                                          ↓
+                                                    Génération chapitres
+                                                          ↓
+                                                    Narration (GradiumTTS) → 🔊 Audio
+```
+
+---
+
 ## ✅ V0.2 - TTS Integration (Terminée!)
 
-### 🎉 Session du 25 décembre 2024
+### 🎉 Session du 25 décembre 2024 - Partie 1
 **Travail effectué:**
 1. ✅ Fix des paramètres Streamlit
    - Résolution bug: nombre de chapitres toujours à 10 → maintenant configurable
@@ -22,72 +62,51 @@
    - Boutons 🔊 pour chaque chapitre
    - Bouton 🔊 pour histoire complète
 
-**Commits:**
+**Commits V0.2:**
 - `584411a` - fix: Remove hardcoded prompts from default.yaml
 - `c2b458d` - fix: Add temperature parameter support
 - `79849bf` - feat: Add num_chapters context to prompts
 - `794ece0` - feat: Add voice preset selection
 - `7575368` - feat: Implement Celeste TTS (abandonné)
-- `bfb846e` - **feat: Replace Celeste with direct Gradium API** ⭐
+- `bfb846e` - feat: Replace Celeste with direct Gradium API ⭐
 
-### Déjà Fait ✅
-- [x] Créer webapp Streamlit pour tester la pipeline de génération d'histoire
-  - [x] Interface web complète avec 4 onglets (Plan, Chapitres, Histoire complète, Éditeur de prompts)
-  - [x] Makefile pour lancer facilement (`make webapp`)
-  - [x] Fix: Problème de troncature JSON résolu (max_tokens=4000)
-  - [x] Fix: Event loop handling pour Streamlit
-  - [x] Prompts configurables via `configs/prompts.json`
-  - [x] Validation Pydantic pour JSON structuré
+---
 
-- [x] **Éditeur de prompts intégré** ✅
-  - [x] Onglet "Prompts" fonctionnel
-  - [x] Modification system prompt + user prompt dans l'interface
-  - [x] Réglage du nombre de chapitres dynamique (slider 1-20)
-  - [x] Réglage de la température (slider 0.1-2.0)
-  - [x] Réglage de la longueur des chapitres (Court/Moyen/Long)
+## 🚀 Fonctionnalités Actuelles (V0.3)
 
-- [x] **Intégration Gradium TTS** pour la narration ✅
-  - [x] Module `GradiumTTS` avec API directe (pas Celeste)
-  - [x] Support des IDs de voix personnalisés (4 voix françaises configurées)
-  - [x] Contrôle de vitesse via `padding_bonus` (-4.0 à +4.0)
-  - [x] Boutons 🔊 pour écouter chaque chapitre individuellement
-  - [x] Bouton 🔊 pour écouter toute l'histoire complète
-  - [x] Format WAV pour compatibilité optimale
-  - [x] GRADIUM_API_KEY configurée en .env
+### Webapp Streamlit Complète
+- [x] Interface web avec 4 onglets fonctionnels
+  - 🎤 **Prompt & Plan** : Enregistrement vocal OU saisie manuelle + génération du plan
+  - ✍️ **Génération Chapitres** : Génération chapitre par chapitre avec contexte
+  - 📚 **Histoire Complète** : Vue d'ensemble + génération automatique de tous les chapitres
+  - ⚙️ **Prompts** : Éditeur de prompts en temps réel
+- [x] Métriques de performance complètes
+  - Tokens (input/output) par génération
+  - Temps de génération
+  - Coût estimé ($/génération)
+  - Dashboard cumulatif
+  - Historique des erreurs API
+- [x] Export de l'histoire en Markdown
+- [x] Makefile pour lancement facile (`make webapp`)
 
-### Configuration TTS Actuelle
-- **Voix disponibles:**
-  - Claire (zIGaffB0kKEBG_8u) - féminine française ⭐ par défaut
-  - Voix 2 (IB53xJtufx1sbfbt)
-  - Voix 3 (s0PhgjzOTRD5wo5L)
-  - Voix 4 (rIYDMY3dLccdauWA)
-  - + ID personnalisé pour tester d'autres voix
+### Modules IA Complets
+- [x] **LLM** : CelesteLLM avec support multi-providers (Gemini, Claude, GPT-4o)
+- [x] **TTS** : GradiumTTS avec 4 voix françaises + vitesse configurable
+- [x] **STT** : GradiumSTT avec enregistrement audio intégré
+- [x] Configuration centralisée (YAML + JSON + .env)
+- [x] Logging structuré
 
-- **Contrôle de vitesse:**
-  - Très rapide (-2.0), Rapide (-1.0), Normale (0.0), Lent (1.0), Très lent (2.0)
+### Configuration
+- [x] Prompts éditables via interface Streamlit
+- [x] Paramètres de génération ajustables (température, longueur, nb chapitres)
+- [x] Voix TTS sélectionnable avec IDs personnalisés
+- [x] Validation Pydantic pour JSON structuré
 
-## 🚧 En Cours (V0.3)
+---
 
-### À Faire Maintenant
-- [ ] **Webapp: Ajouter métriques de performance**
-  - [ ] Afficher tokens utilisés par chapitre/plan
-  - [ ] Afficher temps de génération
-  - [ ] Afficher coût estimé par génération
-  - [ ] Afficher erreurs API (dépassement tokens, erreurs, etc.)
+## 🚧 Prochaines Étapes (V0.4)
 
-- [ ] **Ajouter Gradium STT** (Speech-to-Text)
-  - [ ] Module `GradiumSTT` similaire à `GradiumTTS`
-  - [ ] API key déjà configurée: `GRADIUM_API_KEY`
-  - [ ] Doc Swagger disponible: `/Users/maxence/Documents/PYTHON/swagger/Gradium.md`
-  - [ ] Intégration dans le pipeline pour enregistrement vocal
-
-## 📋 Prochaines Fonctionnalités
-
-
-
-- Utiliser le mode streaming des IA pour recevoir les données plus rapidement ?
-
-### V0.3 - Histoires Longues & Génération Streaming
+### V0.4 - Histoires Longues & Génération Streaming
 
 **Objectif** : Créer des histoires de ~10 minutes avec génération en parallèle de la narration
 
@@ -96,31 +115,44 @@
   - Créer le plan complet de l'histoire
   - Générer les 2-3 premiers chapitres immédiatement
   - Commencer la narration du chapitre 1
-- 
+
 - [ ] **Étape 2** : Génération chapitre par chapitre pendant narration
   - Pendant que le chapitre N est narré, générer le chapitre N+2
   - Pipeline concurrent : TTS (chapitre N) || LLM (chapitre N+2)
   - Buffer management pour éviter les latences
-  - générer un chapitre puis l'autre en envoyant un context de ce qui s'est passé précédemment
-    - Donner du context de ce qui s'est passé précédemment dans les chapitres précédentes
-      - Demander un structured output en JSON avec : 
-        - TITLE histoire (qui doit réster le même tout le temps)
-        - TITLE CHAPITRE + NUMERO (envoyé suite à la toute première génération)
-        - Chapitre rédigé
-        - CONTEXT GLOBAL (l'IA met à jour à chaque fois un context global de l'histoire pour permettre au prochain appel d'avoir du context sur la génération à créer)
-      
-
+  - Structured output JSON avec :
+    - TITLE histoire (constant)
+    - TITLE CHAPITRE + NUMERO
+    - Chapitre rédigé
+    - CONTEXT GLOBAL (mis à jour par l'IA à chaque génération)
 
 #### Métriques & Timing
 - [ ] Calculer la durée de narration par chapitre
 - [ ] Ajuster le nombre de mots par chapitre pour ~10 min total
 - [ ] Logger les performances de génération vs narration
 
-### V0.4 - Structure Narrative Améliorée
+**Timeline estimée:**
+```
+0s    : Fin enregistrement vocal, début STT
+2s    : STT terminé, début génération plan
+5s    : Plan généré, début génération chapitres 1-3
+10s   : Chapitres 1-3 prêts, début narration chapitre 1
+10-60s: Narration ch1 || Génération ch4
+60-120s: Narration ch2 || Génération ch5
+...
+```
 
-**Objectif** : Créer une structure narrative en 3 actes pour des histoires plus cohérentes
+---
 
-#### Structure en 3 Actes
+## 📋 Backlog (V0.5+)
+
+## Uniformisation 
+- [ ] Créer une API de création d'histoire
+
+
+### V0.5 - Structure Narrative en 3 Actes
+**Objectif** : Créer une structure narrative plus cohérente
+
 - [ ] **Commencement** (3 chapitres)
   - Introduction du personnage principal
   - Mise en place du contexte et du monde
@@ -136,42 +168,30 @@
   - Climax de l'histoire
   - Dénouement satisfaisant
 
-#### Prompts Structurés
-- [ ] Créer des templates de prompts par acte
-- [ ] Ajuster le ton narratif selon la progression
+- [ ] Prompts structurés par acte
 - [ ] Validation de cohérence entre les actes
 
-### V0.5 - Ambiance Sonore Immersive
 
-**Objectif** : Ajouter de la musique de fond pour une expérience plus immersive
+### V0.6 - Ambiance Sonore Immersive
+**Objectif** : Ajouter de la musique de fond
 
-- [ ] Demander dans le structured output des chapitrages une ambiance ou un thème sur ce chapitre
-  - Ca permettra de générer des musiques correspondantes à ce chapitre pour les jouer en même temps que la lecture
+- [ ] Demander dans le structured output une ambiance par chapitre
+- [ ] Générer de la musique par IA (MUREKA generator)
+- [ ] Sauvegarder les musiques par thème
+- [ ] Mixer musique de fond + narration TTS
+- [ ] Ajuster les niveaux (musique à 20-30% du volume narration)
+- [ ] Transitions fluides (fade in/out)
 
+## Multiples voix
+- [ ] Permettre plusieurs voix TTS dans une même histoire
+  - Détecter quand quelqu'un parle et utiliser une autre voix puis tout assembler
 
-#### Musique de Fond
-- [ ] générer de la musique par IA via API
-  - MUREKA generator
-  - Sauvegarder ces musiques en fonction de leur thème, on pourra les sélectionner au besoin pendant la lecture de l'histoire quand il y en aura beaucoup
+---
 
-- [ ] Intégration audio
-  - Mixer musique de fond + narration TTS
-  - Ajuster les niveaux (musique à 20-30% du volume narration)
-  - Transitions fluides entre les morceaux
+## 🎯 Raspberry Pi (V1.0)
 
-- [ ] Gestion dynamique
-  - Changer la musique selon l'acte narratif
-  - Fade in/out lors des transitions de chapitres
-  - Silence pendant les moments clés
-
-#### Effets Sonores (optionnel)
-- [ ] Bruitages contextuels selon le thème de l'histoire
-- [ ] Sons d'ambiance (nature, ville, fantastique, etc.)
-
-## 🎯 Backlog (V1.0+)
-
-### Interface & UX
-- [ ] LED status indicators sur Raspberry Pi
+### Interface & Hardware
+- [ ] LED status indicators
   - Idle (vert fixe)
   - Listening (bleu pulsé)
   - Processing (orange pulsé)
@@ -183,120 +203,134 @@
   - Short press pour pause/reprise
   - Long press (3s) pour arrêt
 
-### Performance & Qualité
-- [ ] Cache des prompts et contexte
-- [ ] Optimisation de la latence totale (<8s)
-- [ ] A/B testing de différents modèles LLM
-- [ ] Fine-tuning des prompts pour histoires jeunesse
-
-### Fonctionnalités Avancées
-- [ ] Sélection du style narratif (aventure, fantastique, science-fiction, etc.)
-- [ ] Personnages récurrents avec mémoire
-- [ ] Adaptation de la longueur selon l'âge (5 min pour jeunes, 10+ min pour plus grands)
-- [ ] Interface web optionnelle pour configuration
-
-### Déploiement Raspberry Pi
+### Déploiement
 - [ ] Script d'installation automatique
 - [ ] Service systemd pour démarrage automatique
 - [ ] Gestion des logs et rotation
 - [ ] Métriques de performance
 
-## 🔬 Recherche & Expérimentation
+### Performance
+- [ ] Cache des prompts et contexte
+- [ ] Optimisation de la latence totale (<8s)
+- [ ] Fine-tuning des prompts pour histoires jeunesse
+- [ ] Tests de charge et stabilité (30+ cycles)
 
-- [ ] Tester différents providers LLM (GPT-4o vs Claude vs Gemini)
-- [ ] Comparer qualité narrative entre modèles
-- [ ] Évaluer coûts API par histoire générée
-- [ ] Explorer Celeste STT quand disponible (remplacer Google Speech)
+---
 
-## 📝 Notes Techniques
+## 📦 Modules Implémentés
 
-### Génération Streaming (V0.3)
-```
-Timeline:
-0s    : Début enregistrement
-5s    : Fin enregistrement, début STT
-7s    : STT terminé, début génération plan
-10s   : Plan généré, début génération chapitres 1-3
-15s   : Chapitres 1-3 prêts, début narration chapitre 1
-15-60s: Narration ch1 || Génération ch4
-60-120s: Narration ch2 || Génération ch5
-...
-```
+### LLM (app/llm/)
+- ✅ **CelesteLLM** (`celeste_llm.py`)
+  - Génération de plans d'histoires structurés (JSON avec Pydantic)
+  - Génération de chapitres avec contexte cumulatif
+  - Support multi-providers (Gemini, Claude, GPT-4o via Celeste AI)
+  - Gestion de la température et des tokens
+  - Prompts configurables via `configs/prompts.json`
 
-### Structure Narrative (V0.4)
-```python
-story_structure = {
-    "commencement": {
-        "chapters": 3,
-        "tone": "introduction",
-        "music": "calm_beginning.mp3"
-    },
-    "peripéties": {
-        "chapters": 4,
-        "tone": "adventure",
-        "music": "action_theme.mp3"
-    },
-    "conclusion": {
-        "chapters": 3,
-        "tone": "resolution",
-        "music": "peaceful_ending.mp3"
-    }
-}
-```
+### TTS - Text-to-Speech (app/tts/)
+- ✅ **GradiumTTS** (`gradium_tts.py`)
+  - API Gradium directe (pas via Celeste)
+  - Support voix personnalisées (IDs de voix Gradium)
+  - Contrôle de vitesse (padding_bonus -4.0 à +4.0)
+  - Format WAV optimisé
+  - Méthodes async + wrappers sync
 
-### Musique de Fond (V0.5)
-```python
-# Mixer audio avec pydub ou sounddevice
-from pydub import AudioSegment
-from pydub.playback import play
+- ⚠️ **CelesteTTS** (`celeste_tts.py`) - Deprecated
+  - Remplacé par GradiumTTS pour meilleure compatibilité
+  - Conservé pour référence
 
-narration = AudioSegment.from_wav("chapter1.wav")
-music = AudioSegment.from_mp3("background.mp3") - 20  # -20dB
-combined = narration.overlay(music, loop=True)
-```
+### STT - Speech-to-Text (app/stt/)
+- ✅ **GradiumSTT** (`gradium_stt.py`)
+  - API Gradium directe pour transcription
+  - Support WAV, PCM, OPUS
+  - Streaming audio par chunks (80ms à 24kHz)
+  - Auto-détection du format
+  - Méthodes async + wrappers sync
+
+- ⚠️ **PiperSTT** (`piper_stt.py`) - À supprimer
+  - Ancien module pour Raspberry Pi (local)
+  - Non utilisé, remplacé par GradiumSTT
+
+### Utils (app/utils/)
+- ✅ **Config** (`config.py`)
+  - Chargement centralisé depuis `configs/default.yaml`
+  - Support des variables d'environnement
+  - Validation des chemins et paramètres
+
+- ✅ **Logger** (`logger.py`)
+  - Logging structuré avec rotation
+  - Niveaux configurables
+  - Format JSON pour analyse
+
+### Webapp (webapp/)
+- ✅ **Streamlit UI** (`streamlit_app.py`)
+  - 4 onglets fonctionnels (Prompt & Plan, Chapitres, Histoire complète, Prompts)
+  - Enregistrement vocal intégré (STT)
+  - Narration audio intégrée (TTS)
+  - Configuration TTS avec sélection de voix et vitesse
+  - Métriques de performance complètes
+  - Édition en temps réel des prompts
+  - Export Markdown
+
+- ✅ **Prompt Editor** (`utils/prompt_editor.py`)
+  - Chargement/sauvegarde de `configs/prompts.json`
+  - Validation des templates
+
+---
+
+## 🔧 Configuration Actuelle
+
+### TTS - Voix Disponibles
+- **Claire** (zIGaffB0kKEBG_8u) - féminine française ⭐ par défaut
+- **Voix 2** (IB53xJtufx1sbfbt) - française
+- **Voix 3** (s0PhgjzOTRD5wo5L) - française
+- **Voix 4** (rIYDMY3dLccdauWA) - française
+- **ID personnalisé** - pour tester d'autres voix Gradium
+
+### TTS - Contrôle de Vitesse
+- Très rapide (-2.0)
+- Rapide (-1.0)
+- Normale (0.0)
+- Lent (1.0)
+- Très lent (2.0)
+
+### STT - Formats Supportés
+- WAV (recommandé pour Streamlit)
+- PCM (24kHz, 16-bit, mono)
+- OPUS
+
+### LLM - Providers Supportés
+- Gemini 1.5 Flash (rapide, gratuit)
+- Gemini 1.5 Pro (meilleure qualité)
+- GPT-4o Mini (OpenAI)
+- Claude 3.5 Sonnet (Anthropic)
+
+---
 
 ## 🎨 Idées Futures
 
 - Thèmes saisonniers (Noël, Halloween, etc.)
-- Histoires interactives avec choix
-- Support multi-langues
-- Export audio des histoires générées
+- Histoires interactives avec choix multiples
+- Support multi-langues (anglais, espagnol)
+- Export audio complet des histoires générées
 - Partage communautaire d'histoires
 - Mode "histoire du soir" avec timing progressif vers le sommeil
+- Génération d'illustrations par IA (DALL-E, Midjourney)
+- Personnages récurrents avec mémoire entre sessions
+- Adaptation de la longueur selon l'âge (5 min pour jeunes, 10+ min pour plus grands)
 
 ---
 
 **Dernière mise à jour** : 25 décembre 2024
-**Version actuelle** : V0.2 (TTS Gradium intégré)
-**Prochaine release** : V0.3 (Génération streaming + STT Gradium)
+**Version actuelle** : V0.3 (STT + TTS + Métriques complets)
+**Prochaine release** : V0.4 (Génération streaming + histoires longues)
 
-## 📦 Modules Implémentés
+## 📊 Statistiques du Projet
 
-### LLM
-- **CelesteLLM** (`app/llm/celeste_llm.py`)
-  - Génération de plans d'histoires structurés (JSON)
-  - Génération de chapitres avec contexte cumulatif
-  - Support multi-providers (Gemini, Claude, GPT-4o via Celeste AI)
-  - Gestion de la température et des tokens
-
-### TTS (Text-to-Speech)
-- **GradiumTTS** (`app/tts/gradium_tts.py`) ✅
-  - API Gradium directe (pas via Celeste)
-  - Support voix personnalisées (IDs de voix)
-  - Contrôle de vitesse (padding_bonus -4.0 à +4.0)
-  - Format WAV optimisé
-
-- **CelesteTTS** (`app/tts/celeste_tts.py`) - Deprecated
-  - Remplacé par GradiumTTS pour meilleure compatibilité
-
-### STT (Speech-to-Text)
-- **PiperSTT** (`app/stt/piper_stt.py`) - À remplacer
-  - Actuellement pour Raspberry Pi (local)
-  - **TODO:** Remplacer par GradiumSTT pour cohérence
-
-### Webapp
-- **Streamlit UI** (`webapp/streamlit_app.py`)
-  - 4 onglets: Plan, Chapitres, Histoire complète, Éditeur de prompts
-  - Configuration TTS avec sélection de voix et vitesse
-  - Boutons audio pour écouter chapitres/histoire
-  - Édition en temps réel des prompts
+- **Modules Python** : 8 modules principaux
+- **Lignes de code** : ~3000+ lignes
+- **APIs intégrées** : Celeste AI (LLM), Gradium (TTS/STT)
+- **Providers LLM** : 4 (Gemini, Claude, GPT-4o, OpenAI)
+- **Voix TTS** : 4 voix françaises configurées + personnalisable
+- **Formats audio** : WAV, PCM, OPUS
+- **Interface** : Streamlit (4 onglets)
