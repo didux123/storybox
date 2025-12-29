@@ -2,7 +2,7 @@
 # Multi-stage build for optimized image size
 
 # ===== Builder Stage =====
-FROM python:3.10-slim as builder
+FROM python:3.12-slim as builder
 
 WORKDIR /app
 
@@ -18,7 +18,7 @@ COPY requirements-backend.txt .
 RUN pip install --no-cache-dir --user -r requirements-backend.txt
 
 # ===== Runtime Stage =====
-FROM python:3.10-slim
+FROM python:3.12-slim
 
 WORKDIR /app
 
