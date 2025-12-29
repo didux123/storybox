@@ -1,0 +1,112 @@
+# Docker Compose - StoryBox V0.4
+# Full stack: Backend API + Frontend + PostgreSQL + Redis
+
+version: '3.8'
+
+services:
+  # ===== Backend API =====
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    container_name: storybox-backend
+    ports:
+      - "8000:8000"
+    environment:
+      # API Configuration
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - LOG_LEVEL=INFO
+
+      # CORS (allow frontend)
+      - CORS_ORIGINS=http://localhost:8501,http://frontend:8501
+
+      # Security
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-change-this-secret-key-in-production}
+      - RATE_LIMIT_ENABLED=true
+      - RATE_LIMIT_REQUESTS=10
+      - RATE_LIMIT_WINDOW=60
+
+      # AI API Keys (from host .env)
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - GRADIUM_API_KEY=${GRADIUM_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+
+      # Database (for future V1.0)
+      - DATABASE_URL=postgresql://storybox:storybox@postgres:5432/storybox
+
+      # Redis (for rate limiting)
+      - REDIS_URL=redis://redis:6379/0
+
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - storybox-network
+    depends_on:
+      - postgres
+      - redis
+    restart: unless-stopped
+
+  # ===== Frontend (Streamlit) =====
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend.Dockerfile
+    container_name: storybox-frontend
+    ports:
+      - "8501:8501"
+    environment:
+      # Backend API URL
+      - BACKEND_API_URL=http://backend:8000
+
+      # AI API Keys (if calling APIs directly, optional)
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - GRADIUM_API_KEY=${GRADIUM_API_KEY}
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - storybox-network
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  # ===== PostgreSQL Database =====
+  postgres:
+    image: postgres:15-alpine
+    container_name: storybox-postgres
+    environment:
+      - POSTGRES_USER=storybox
+      - POSTGRES_PASSWORD=storybox
+      - POSTGRES_DB=storybox
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - storybox-network
+    restart: unless-stopped
+
+  # ===== Redis Cache =====
+  redis:
+    image: redis:7-alpine
+    container_name: storybox-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - storybox-network
+    restart: unless-stopped
+
+# ===== Volumes =====
+volumes:
+  postgres-data:
+    driver: local
+  redis-data:
+    driver: local
+
+# ===== Networks =====
+networks:
+  storybox-network:
+    driver: bridge
