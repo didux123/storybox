@@ -6,7 +6,8 @@ Configuration settings for the FastAPI backend.
 
 import os
 from typing import Optional
-from pydantic import BaseSettings, Field
+from pydantic import Field, ConfigDict
+from pydantic_settings import BaseSettings
 
 
 class BackendConfig(BaseSettings):
@@ -15,6 +16,11 @@ class BackendConfig(BaseSettings):
 
     Loaded from environment variables with defaults.
     """
+    model_config = ConfigDict(
+        extra='ignore',
+        env_file='.env',
+        case_sensitive=False
+    )
 
     # API Settings
     api_title: str = "StoryBox API"
@@ -58,10 +64,6 @@ class BackendConfig(BaseSettings):
 
     # Logging
     log_level: str = Field(default="INFO", env="LOG_LEVEL")
-
-    class Config:
-        env_file = ".env"
-        case_sensitive = False
 
 
 # Global config instance
