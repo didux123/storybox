@@ -104,53 +104,108 @@ Utilisateur → 🎤 Enregistrement vocal → GradiumSTT → Texte transcrit
 
 ---
 
-## 🚧 Prochaines Étapes (V0.4)
+## 🚧 Prochaines Étapes (V0.4+)
 
-### V0.4 - Histoires Longues & Génération Streaming
+### V0.4 - API Backend & Architecture REST
 
-**Objectif** : Créer des histoires de ~10 minutes avec génération en parallèle de la narration
+**Objectif** : Séparation Frontend/Backend avec API professionnelle
 
-#### Système de Génération en 2 Temps
-- [ ] **Étape 1** : Génération du plan (5 chapitres initiaux)
-  - Créer le plan complet de l'histoire
-  - Générer les 2-3 premiers chapitres immédiatement
-  - Commencer la narration du chapitre 1
+#### Architecture API REST
+- [ ] **Backend API (FastAPI)**
+  - Créer API REST indépendante
+  - Endpoint principal: `POST /api/v1/generate-story`
+  - Documentation OpenAPI/Swagger automatique
+  - Support CORS pour frontend
 
-- [ ] **Étape 2** : Génération chapitre par chapitre pendant narration
-  - Pendant que le chapitre N est narré, générer le chapitre N+2
-  - Pipeline concurrent : TTS (chapitre N) || LLM (chapitre N+2)
-  - Buffer management pour éviter les latences
-  - Structured output JSON avec :
-    - TITLE histoire (constant)
-    - TITLE CHAPITRE + NUMERO
-    - Chapitre rédigé
-    - CONTEXT GLOBAL (mis à jour par l'IA à chaque génération)
+- [ ] **Authentification & Sécurité**
+  - Authentification par token (JWT)
+  - Rate limiting par token
+  - Validation des inputs (Pydantic)
+  - Logs sécurisés des requêtes
 
-#### Métriques & Timing
-- [ ] Calculer la durée de narration par chapitre
-- [ ] Ajuster le nombre de mots par chapitre pour ~10 min total
-- [ ] Logger les performances de génération vs narration
+- [ ] **Paramètres API**
+  - Input : `prompt` (str) - Thème de l'histoire
+  - Input : `model` (str, optional) - Modèle LLM (default: mistral-large-2411)
+  - Input : `output_format` (enum) - "text" ou "audio"
+  - Input : `num_chapters` (int, optional) - Nombre de chapitres
+  - Input : `voice_id` (str, optional) - ID voix TTS (si format audio)
+  - Input : `temperature` (float, optional) - Température génération
+  - Output : Histoire (JSON ou WAV selon format)
 
-**Timeline estimée:**
-```
-0s    : Fin enregistrement vocal, début STT
-2s    : STT terminé, début génération plan
-5s    : Plan généré, début génération chapitres 1-3
-10s   : Chapitres 1-3 prêts, début narration chapitre 1
-10-60s: Narration ch1 || Génération ch4
-60-120s: Narration ch2 || Génération ch5
-...
+- [ ] **Séparation Frontend/Backend**
+  - Streamlit reste frontend (parfait tel quel)
+  - Streamlit consomme l'API backend
+  - Communication via HTTP REST
+  - Variables d'environnement pour URL API
+
+#### Response Format
+```json
+{
+  "status": "success",
+  "data": {
+    "story_id": "uuid",
+    "theme": "Un robot qui découvre les émotions",
+    "chapters": [...],
+    "output": "base64_audio" | "text_content",
+    "format": "audio" | "text",
+    "metadata": {
+      "model": "mistral-large-2411",
+      "tokens": 4521,
+      "duration": 45.2,
+      "cost": 0.0034
+    }
+  }
+}
 ```
 
 ---
 
-## 📋 Backlog (V0.5+)
+### V0.5 - Génération Streaming Optimisée
 
-## Uniformisation 
-- [ ] Créer une API de création d'histoire
+**Objectif** : Pipeline parallèle pour minimiser latence totale
 
+#### Streaming Pipeline
+- [ ] **Génération + Audio en Parallèle**
+  - Chapitre 1 généré → Audio streaming immédiat (Gradium)
+  - Pendant audio Ch1 → Génération Ch2 en arrière-plan
+  - Pipeline concurrent : Audio(N) || Generate(N+1)
+  - Envoi streaming au client via WebSocket
 
-### V0.5 - Structure Narrative en 3 Actes
+- [ ] **WebSocket pour Streaming Temps Réel**
+  - Endpoint WebSocket : `/ws/stream-story`
+  - Events : `chapter_generated`, `audio_chunk`, `complete`
+  - Buffer management côté serveur
+  - Gestion reconnexion automatique
+
+- [ ] **Buffer Management Intelligent**
+  - Préchargement des 2 prochains chapitres
+  - Calcul durée narration par chapitre
+  - Ajustement dynamique du buffer
+  - Métriques de performance temps réel
+
+#### Optimisation Latence
+- [ ] Calculer la durée de narration par chapitre
+- [ ] Ajuster le nombre de mots pour ~10 min total
+- [ ] Logger les performances de génération vs narration
+- [ ] Précharger les chapitres suivants
+
+**Timeline estimée (streaming) :**
+```
+0s    : Client envoie prompt
+2s    : Plan généré
+5s    : Ch1 généré → Audio streaming START
+10s   : Premier audio chunk reçu par client
+5-60s : Audio Ch1 streaming || Génération Ch2
+60-120s: Audio Ch2 streaming || Génération Ch3
+...
+Latence perçue : ~10s au lieu de ~50s (5x plus rapide!)
+```
+
+---
+
+## 📋 Backlog (V0.6+)
+
+### V0.6 - Structure Narrative en 3 Actes
 **Objectif** : Créer une structure narrative plus cohérente
 
 - [ ] **Commencement** (3 chapitres)
@@ -172,7 +227,7 @@ Utilisateur → 🎤 Enregistrement vocal → GradiumSTT → Texte transcrit
 - [ ] Validation de cohérence entre les actes
 
 
-### V0.6 - Ambiance Sonore Immersive
+### V0.7 - Ambiance Sonore Immersive
 **Objectif** : Ajouter de la musique de fond
 
 - [ ] Demander dans le structured output une ambiance par chapitre
@@ -182,38 +237,109 @@ Utilisateur → 🎤 Enregistrement vocal → GradiumSTT → Texte transcrit
 - [ ] Ajuster les niveaux (musique à 20-30% du volume narration)
 - [ ] Transitions fluides (fade in/out)
 
-## Multiples voix
-- [ ] Permettre plusieurs voix TTS dans une même histoire
-  - Détecter quand quelqu'un parle et utiliser une autre voix puis tout assembler
+### V0.8 - Multiples Voix TTS
+**Objectif** : Dialogues naturels avec plusieurs voix
+
+- [ ] **Détection des Dialogues**
+  - Parser le texte pour identifier les dialogues
+  - Détection automatique des personnages
+  - Attribution voix par personnage
+
+- [ ] **Génération Multi-Voix**
+  - Générer chaque dialogue avec voix différente
+  - Assembler les segments audio
+  - Transitions fluides entre voix
+  - Respect du timing et de l'intonation
 
 ---
 
-## 🎯 Raspberry Pi (V1.0)
+## 🎯 V1.0 - CMS Admin & User Management
 
-### Interface & Hardware
-- [ ] LED status indicators
-  - Idle (vert fixe)
-  - Listening (bleu pulsé)
-  - Processing (orange pulsé)
-  - Narrating (violet fixe)
-  - Error (rouge clignotant)
+**Objectif** : Plateforme SaaS complète avec gestion utilisateurs
 
-- [ ] Bouton GPIO multi-fonction
-  - Hold-to-talk pour enregistrement
-  - Short press pour pause/reprise
-  - Long press (3s) pour arrêt
+### CMS Admin Dashboard
+- [ ] **Interface Admin (React/Vue.js)**
+  - Dashboard principal avec métriques globales
+  - Gestion utilisateurs API
+  - Création/révocation tokens JWT
+  - Configuration quotas par utilisateur
+  - Gestion des modèles LLM disponibles
 
-### Déploiement
-- [ ] Script d'installation automatique
-- [ ] Service systemd pour démarrage automatique
-- [ ] Gestion des logs et rotation
-- [ ] Métriques de performance
+- [ ] **Base de Données**
+  - PostgreSQL pour persistance
+  - Tables : users, api_tokens, stories, usage_metrics
+  - Migrations avec Alembic
+  - Backups automatiques
 
-### Performance
-- [ ] Cache des prompts et contexte
-- [ ] Optimisation de la latence totale (<8s)
-- [ ] Fine-tuning des prompts pour histoires jeunesse
-- [ ] Tests de charge et stabilité (30+ cycles)
+### Tracking & Analytics
+- [ ] **Métriques par Utilisateur**
+  - Nombre d'histoires générées
+  - Tokens consommés (input/output)
+  - Coûts API par provider
+  - Temps de génération moyens
+  - Taux de succès/erreur
+
+- [ ] **Facturation & Crédits**
+  - Système de crédits virtuels
+  - Packages de crédits (Starter, Pro, Enterprise)
+  - Facturation mensuelle automatique
+  - Webhooks pour paiements (Stripe)
+  - Historique des transactions
+
+### API Management
+- [ ] **Quotas & Limites**
+  - Rate limiting personnalisé par user
+  - Limites de tokens par mois
+  - Limites de coût maximum
+  - Alertes email avant dépassement
+
+- [ ] **Monitoring**
+  - Dashboard temps réel (Grafana)
+  - Logs centralisés (ELK Stack)
+  - Alertes incidents (PagerDuty)
+  - Métriques de performance
+
+---
+
+## 🐳 Infrastructure & Déploiement
+
+### Docker (V0.4 - Priorité Haute)
+- [ ] **Dockerisation Backend API**
+  - Dockerfile optimisé multi-stage
+  - Image Python 3.10+ Alpine
+  - Dépendances figées (requirements.txt)
+  - Healthcheck endpoint
+
+- [ ] **Dockerisation Frontend Streamlit**
+  - Dockerfile séparé pour Streamlit
+  - Configuration via variables d'environnement
+  - Port 8501 exposé
+
+- [ ] **Docker Compose**
+  - `docker-compose.yml` pour stack complète
+  - Services : backend, frontend, postgres, redis
+  - Volumes pour persistance
+  - Réseau interne pour communication
+  - Variables d'environnement centralisées
+
+- [ ] **Multi-Architecture**
+  - Support amd64 (serveurs cloud)
+  - Support arm64 (Mac M1/M2, Raspberry Pi)
+  - GitHub Actions pour build automatique
+  - Push vers DockerHub/GHCR
+
+### CI/CD
+- [ ] **GitHub Actions**
+  - Tests automatiques (pytest)
+  - Linting (flake8, mypy)
+  - Build Docker images
+  - Déploiement automatique (staging/prod)
+
+- [ ] **Déploiement**
+  - Déploiement sur cloud (AWS/GCP/Azure)
+  - Kubernetes manifests (optionnel)
+  - Monitoring et logs
+  - Rollback automatique en cas d'erreur
 
 ---
 

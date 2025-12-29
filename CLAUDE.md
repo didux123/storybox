@@ -4,227 +4,284 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**StoryBox IA** is an AI-powered interactive storytelling device for Raspberry Pi 4B. The device uses a hold-to-talk button interface to:
-1. Record voice input (French)
-2. Transcribe the request using cloud STT
-3. Generate story plan and chapters using cloud LLM (Celeste AI)
-4. Stream narration using TTS (coming soon with Celeste TTS)
+**StoryBox IA** is an AI-powered interactive storytelling web application. The system combines:
+1. **Voice input**: Record and transcribe story prompts (Gradium STT)
+2. **Story generation**: Generate structured stories with multiple LLM providers (Celeste AI)
+3. **Voice narration**: Natural French TTS narration (Gradium TTS)
+4. **Web interface**: Complete Streamlit webapp for testing and demos
 
-**Key Feature**: Cloud-based AI with multi-provider support via Celeste AI library.
+**Current Status**: V0.3 - Fully functional web app with STT, LLM, and TTS integration
 
-## Current Architecture (Cloud API - main branch)
+**Future Direction**: Evolving toward API backend (FastAPI) with separated frontend, containerized with Docker
 
-### Core Stack
-- **STT**: Google Speech Recognition (temporary solution)
-  - Free, fast (~2s transcription)
-  - Will migrate to Celeste STT when available
-- **LLM**: Celeste AI unified library
-  - Supports OpenAI, Anthropic, Google, Mistral, xAI, DeepSeek, Groq
-  - Zero lock-in: switch providers by changing model ID
-  - Async/await for better performance
-- **TTS**: Placeholder for Celeste TTS via Gradio (coming soon)
-- **GPIO**: Button and LED control (Raspberry Pi only)
-- **State Machine**: Manages device states and pipeline flow
+## Current Architecture (V0.3)
 
-### File Structure (Cloud Mode)
+### Technology Stack
+- **Frontend**: Streamlit (4-tab interface)
+- **LLM**: Celeste AI library
+  - Multi-provider support: Gemini, Claude, GPT-4o, Mistral, DeepSeek, xAI
+  - Default: Gemini 1.5 Flash (fast, free tier available)
+  - Async/await for performance
+- **TTS**: Gradium API
+  - 4 French voices pre-configured
+  - Speed control (-4.0 to +4.0)
+  - WAV output format
+- **STT**: Gradium API
+  - Support WAV, PCM, OPUS formats
+  - Streaming audio chunks
+  - Auto-format detection
+- **Configuration**: YAML + JSON + .env
+- **Logging**: Structured logging with python-json-logger
+
+### File Structure
 ```
-app/
-├── llm/
-│   ├── celeste_llm.py       # Cloud LLM via Celeste
-│   └── __init__.py
-├── stt/
-│   ├── system_dictation.py  # Google Speech Recognition
-│   └── __init__.py
-├── tts/                      # TTS module (to be implemented)
-│   └── __init__.py
-├── gpio/                     # GPIO handlers (keep for Pi)
-│   ├── button.py
-│   ├── led.py
-│   └── __init__.py
-├── state/                    # State machine (keep)
-│   ├── machine.py
-│   └── __init__.py
-├── utils/                    # Config, logging (keep)
-│   ├── config.py
-│   ├── logger.py
-│   └── __init__.py
-└── main.py                   # Main orchestrator
-
-test/
-└── test_cloud_pipeline.py    # Interactive cloud test
-
-docs/
-└── legacy/                   # Local AI docs (deprecated)
-    ├── README.md
-    ├── HARDWARE.md
-    ├── MAC_DEVELOPMENT.md
-    ├── MODULES.md
-    └── RASPBERRY_PI_SETUP.md
+storybox/
+├── app/                          # Core modules
+│   ├── llm/
+│   │   └── celeste_llm.py        # LLM wrapper (Celeste AI)
+│   ├── tts/
+│   │   ├── gradium_tts.py        # TTS via Gradium (active)
+│   │   └── celeste_tts.py        # Deprecated
+│   ├── stt/
+│   │   └── gradium_stt.py        # STT via Gradium
+│   └── utils/
+│       ├── config.py             # Configuration management
+│       └── logger.py             # Logging setup
+│
+├── webapp/                       # Streamlit interface
+│   ├── streamlit_app.py          # Main app (4 tabs)
+│   └── utils/
+│       └── prompt_editor.py      # Prompt editing utilities
+│
+├── configs/                      # Configuration files
+│   ├── default.yaml              # Default settings
+│   ├── prompts.json              # LLM prompts
+│   └── llm_config.json           # Model pricing/config
+│
+├── docs/                         # Documentation
+│   ├── README.md                 # Documentation index
+│   ├── MODULES.md                # Module documentation
+│   ├── API.md                    # API reference
+│   └── legacy/                   # Old Pi documentation
+│
+├── test/                         # Tests
+│   ├── test_cloud_pipeline.py   # Integration test
+│   └── legacy/                  # Old tests
+│
+├── .env                          # API keys (not versioned)
+├── .env.example                  # Template
+├── requirements.txt              # Python dependencies
+├── requirements-dev.txt          # Dev dependencies
+├── Makefile                      # Convenience commands
+├── README.md                     # Main documentation
+├── TODO.md                       # Roadmap
+└── QUICKSTART_WEBAPP.md          # Quick start guide
 ```
 
 ## Development Workflow
 
-### Local Development (Mac/Linux)
-1. Install dependencies:
-   ```bash
-   python3 -m venv .venv
-   source .venv/bin/activate
-   pip install -r requirements.txt
-   ```
-
-2. Configure API keys in `.env`:
-   ```env
-   OPENAI_API_KEY=sk-your-key-here
-   LLM_MODEL_PATH=gpt-4o-mini
-   ```
-
-3. Test the pipeline:
-   ```bash
-   python test/test_cloud_pipeline.py
-   ```
-
-### Deployment to Raspberry Pi
-1. Ensure internet connectivity on Pi (required for cloud APIs)
-2. Clone repo and install dependencies
-3. Configure `.env` with API keys
-4. Run tests to verify functionality
-5. Set up systemd service for production (optional)
-
-### Configuration
-- **`.env`**: API keys, model selection, paths (NOT versioned in Git)
-- **`configs/default.yaml`**: GPIO pins, audio devices, system settings
-- Environment variables override YAML settings
-
-## Key Technical Details
-
-### Celeste LLM Integration
-The `celeste_llm.py` module wraps the Celeste AI library:
-- Supports async/await for concurrent operations
-- Generates story plans (10 chapters) as structured JSON
-- Generates individual chapters with cumulative context
-- Model switching via config (no code changes needed)
-
-Example usage:
-```python
-from app.llm.celeste_llm import CelesteLLM
-
-llm = CelesteLLM(config.llm)
-plan = await llm.generate_story_plan("pirates et trésor", num_chapters=10)
-chapter1 = await llm.generate_chapter(plan, chapter_num=1)
-```
-
-### System Dictation (Temporary STT)
-Uses `SpeechRecognition` library with Google Speech API:
-- Free, no API key needed (uses public endpoint)
-- Fast transcription (~2s)
-- Requires internet connection
-- Will be replaced by Celeste STT when available
-
-### Prompts
-**Plan generation**:
-```
-Génère un plan de {num_chapters} chapitres cohérents sur le thème suivant : {theme}.
-
-Chaque chapitre doit contenir :
-- Un titre court et accrocheur
-- Un résumé en 1 phrase
-
-Réponds UNIQUEMENT au format JSON suivant :
-{
-  "chapters": [
-    {"number": 1, "title": "...", "summary": "..."},
-    ...
-  ]
-}
-```
-
-**Chapter generation**:
-```
-Écris le chapitre {chapter_num} intitulé "{chapter_title}".
-
-Contexte cumulatif des chapitres précédents :
-{cumulative_context}
-
-Plan global de l'histoire :
-{story_plan}
-
-Consignes :
-- {min_words} à {max_words} mots
-- Paragraphes courts pour la lecture à voix haute
-- Cohérent avec le contexte et le plan
-- Ton narratif adapté à un jeune public
-
-Écris UNIQUEMENT le contenu du chapitre, sans répéter le titre.
-```
-
-### Provider Switching
-Change provider by updating `.env`:
-```env
-# OpenAI
-LLM_MODEL_PATH=gpt-4o-mini
-
-# Anthropic
-LLM_MODEL_PATH=claude-3-5-sonnet-20241022
-
-# Google
-LLM_MODEL_PATH=gemini-2.0-flash
-
-# Mistral
-LLM_MODEL_PATH=mistral-large-2411
-```
-
-No code changes required!
-
-## Testing
-
-### Quick Test (Development)
+### Local Setup
 ```bash
+# Clone and setup
+git clone https://github.com/didux123/storybox.git
+cd storybox
+
+# Create virtual environment
+python3 -m venv .venv
+source .venv/bin/activate  # Mac/Linux
+# .venv\Scripts\activate  # Windows
+
+# Install dependencies
+pip install -r requirements-dev.txt
+
+# Configure API keys
+cp .env.example .env
+# Edit .env with your API keys:
+# - GOOGLE_API_KEY (for Gemini)
+# - GRADIUM_API_KEY (for TTS/STT)
+# - OPENAI_API_KEY (optional, for GPT)
+# - ANTHROPIC_API_KEY (optional, for Claude)
+```
+
+### Running the App
+```bash
+# Method 1: Makefile
+make webapp
+
+# Method 2: Direct command
+streamlit run webapp/streamlit_app.py
+
+# Method 3: Shell script
+./run_webapp.sh
+```
+
+### Testing
+```bash
+# Run tests
+pytest test/
+
+# Integration test
 python test/test_cloud_pipeline.py
 ```
 
-This tests:
-1. Audio recording (5 seconds)
-2. Transcription via Google Speech
-3. Story plan generation
-4. First chapter generation
-5. Display results
+## Key Modules
 
-### Integration Testing
-- GPIO: Use actual Pi hardware or mocks (set `MOCK_GPIO=true`)
-- Audio: Test with real microphone and speaker
-- APIs: Ensure internet connectivity and valid API keys
+### CelesteLLM (`app/llm/celeste_llm.py`)
+Wrapper for story generation via Celeste AI library.
+
+**Key Methods:**
+```python
+async def generate_story_plan(theme: str, num_chapters: int = 10) -> StoryPlan
+async def generate_chapter(plan: StoryPlan, chapter_num: int,
+                           cumulative_context: str = "") -> str
+```
+
+**Usage:**
+```python
+from app.llm.celeste_llm import CelesteLLM
+from app.utils.config import get_config
+import asyncio
+
+config = get_config()
+llm = CelesteLLM(config.llm)
+plan = asyncio.run(llm.generate_story_plan("Un robot et les émotions", 5))
+```
+
+### GradiumTTS (`app/tts/gradium_tts.py`)
+Text-to-Speech via Gradium API.
+
+**Key Methods:**
+```python
+async def generate_speech(text: str, voice_id: Optional[str] = None,
+                         output_format: str = "wav",
+                         padding_bonus: float = 0.0) -> Optional[bytes]
+```
+
+**French Voices:**
+- Claire (zIGaffB0kKEBG_8u) - Default female voice
+- + 3 other French voices
+- Custom voice IDs supported
+
+### GradiumSTT (`app/stt/gradium_stt.py`)
+Speech-to-Text via Gradium API.
+
+**Key Methods:**
+```python
+async def transcribe(audio_data: bytes, input_format: str = "wav") -> Optional[str]
+async def transcribe_file(audio_path: str) -> Optional[str]
+```
+
+## Configuration
+
+### Environment Variables (.env)
+```env
+# LLM Provider (choose one)
+GOOGLE_API_KEY=your-google-api-key           # Gemini (recommended)
+OPENAI_API_KEY=sk-your-openai-key           # GPT-4o
+ANTHROPIC_API_KEY=sk-ant-your-key           # Claude
+
+# TTS & STT
+GRADIUM_API_KEY=your-gradium-api-key
+
+# Model Selection
+LLM_MODEL_PATH=gemini-1.5-flash             # Fast & free tier
+# LLM_MODEL_PATH=gpt-4o-mini                # Economical
+# LLM_MODEL_PATH=claude-3-5-sonnet-20241022 # Premium
+# LLM_MODEL_PATH=mistral-large-2411         # Default for future API
+```
+
+### Prompts (configs/prompts.json)
+Editable via Streamlit interface or directly in JSON file.
+
+**Structure:**
+```json
+{
+  "plan": {
+    "system_prompt": "Instructions for story plan generation...",
+    "user_template": "Variables: {theme}, {num_chapters}"
+  },
+  "chapter": {
+    "system_prompt": "Instructions for chapter generation...",
+    "user_template": "Variables: {chapter_num}, {chapter_title}, ..."
+  }
+}
+```
+
+## Roadmap
+
+### V0.4 - API Backend & Docker (Next Priority)
+- Separate backend (FastAPI) from frontend (Streamlit)
+- REST API endpoint: `POST /api/v1/generate-story`
+- JWT authentication
+- Docker containerization (HIGH PRIORITY)
+- Multi-architecture support (amd64, arm64)
+
+### V0.5 - Streaming Generation
+- WebSocket for real-time streaming
+- Parallel generation: Audio(N) || Generate(N+1)
+- 5x latency reduction (~10s vs ~50s perceived)
+
+### V1.0 - CMS & User Management
+- Admin dashboard (React/Vue.js)
+- User management with API tokens
+- Usage tracking and billing
+- PostgreSQL database
+- Stripe integration
+
+See [TODO.md](TODO.md) for complete roadmap.
 
 ## Important Notes
 
-- **Never commit API keys** - use `.env` file (excluded from Git)
-- **Internet required**: Cloud APIs need network connectivity
-- **API costs**: Monitor usage (GPT-4o-mini is cheap, ~$0.15/1M input tokens)
-- **Local mode**: Available in `local_storybox` branch (see `docs/legacy/`)
-- **TTS pending**: Waiting for Celeste TTS release via Gradio
+### API Keys
+- **Never commit** `.env` file - it's in .gitignore
+- Use `.env.example` as template
+- Get keys from:
+  - Google AI Studio: https://makersuite.google.com/app/apikey
+  - Gradium: https://gradium.ai/
+  - OpenAI: https://platform.openai.com/api-keys
+  - Anthropic: https://console.anthropic.com/
+
+### Provider Costs
+- **Gemini Flash**: Free tier available, then $0.075/$0.30 per 1M tokens
+- **GPT-4o-mini**: $0.15/$0.60 per 1M tokens
+- **Claude 3.5 Sonnet**: $3.00/$15.00 per 1M tokens
+- **Mistral Large**: Competitive pricing
+
+### Performance
+Typical times with Gemini Flash:
+- Plan (5 chapters): ~3-5s, ~500 tokens, ~$0.0001
+- Chapter (200 words): ~5-8s, ~800 tokens, ~$0.0002
+- Full story (5 chapters): ~40-50s, ~4000 tokens, ~$0.001
+
+### Raspberry Pi Client
+The Raspberry Pi will become a **client** that consumes the backend API (separate project).
+All Pi-specific code (GPIO, audio input, state machine) has been removed from this repository.
 
 ## Reference Documents
 
-- **README.md**: Main project documentation (cloud mode)
-- **QUICKSTART.md**: Quick start guide for cloud setup
-- **Expression_besoin.md**: Complete functional requirements (French)
-- **docs/legacy/**: Local AI mode documentation (deprecated)
+- **[README.md](README.md)**: Main project documentation
+- **[QUICKSTART_WEBAPP.md](QUICKSTART_WEBAPP.md)**: Quick start guide
+- **[TODO.md](TODO.md)**: Detailed roadmap
+- **[docs/MODULES.md](docs/MODULES.md)**: Module documentation
+- **[docs/API.md](docs/API.md)**: API reference
+- **[Expression_besoin.md](Expression_besoin.md)**: Requirements (French)
 
 ## Branches
 
-- **main**: Cloud API mode (current)
-- **local_storybox**: Local AI mode (Whisper/TinyLlama/Piper)
+- **main**: Current branch - Web API mode with Streamlit frontend
+- **local_storybox**: Deprecated - Old Pi standalone mode (local AI)
 
-To switch to local mode:
-```bash
-git checkout local_storybox
-```
+## Migration History
 
-## Migration Notes
+- **V0.1**: Basic LLM integration
+- **V0.2**: TTS integration (Celeste → Gradium)
+- **V0.3**: STT integration + Complete Streamlit UI + Metrics
+- **V0.4** (planned): API backend + Docker
+- **V0.5** (planned): Streaming optimization
+- **V1.0** (planned): CMS and user management
 
-The project transitioned from local AI (Whisper/TinyLlama/Piper) to cloud APIs for:
-- **Performance**: ~10s total (vs ~33s local)
-- **Quality**: Better models (GPT-4, Claude, Gemini vs quantized 1B model)
-- **Flexibility**: Easy provider switching
-- **Development**: Simpler testing and iteration
+---
 
-Local implementation is preserved in `local_storybox` branch and `docs/legacy/` for reference.
+**Last updated**: December 29, 2024
+**Version**: V0.3
+**Next focus**: V0.4 - Docker containerization and API backend
