@@ -22,7 +22,7 @@ stt:
 
 # Large Language Model (Cloud API via Celeste)
 llm:
-  model_path: "gemini-2.5-flash"  # Override in .env (gemini-2.5-flash, gpt-4o-mini, claude-3-5-sonnet)
+  model_path: "mistral-large-latest"  # Override in .env (mistral-large-latest, gemini-2.5-flash, gpt-4o-mini, claude-3-5-sonnet)
   context_tokens: 2048
   threads: 4
   n_gpu_layers: 0  # CPU only on Pi
