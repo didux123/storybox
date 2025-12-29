@@ -1,82 +1,66 @@
 # StoryBox - TODO & Roadmap
 
+## 🔥 TOP PRIORITÉ
+
+- [ ] **Améliorer la gestion des erreurs du backend**
+  - Logger les exceptions complètes avec traceback
+  - Retourner les détails d'erreur dans la réponse API (avec stacktrace si mode debug)
+  - Capturer les erreurs spécifiques: API keys invalides, timeouts, rate limits
+  - Ajouter des logs structurés pour debugging
+  - Identifier pourquoi "Failed to generate story plan" sans plus de détails
+
+---
+
 ## 🚧 Prochaines Étapes (V0.4+)
 
 ### V0.4 - API Backend & Architecture REST
 
-**Objectif** : Séparation Frontend/Backend avec API professionnelle
+**Status: 🟢 En cours - Docker stack opérationnel**
 
-#### Architecture API REST
-- [ ] **Backend API (FastAPI)**
-  - Créer API REST indépendante
-  - Endpoint principal: `POST /api/v1/generate-story`
-  - Documentation OpenAPI/Swagger automatique
-  - Support CORS pour frontend
+#### ✅ Fait (29 décembre 2024)
+- [x] **Backend API (FastAPI)** créé et fonctionnel
+  - API REST avec endpoint `POST /api/v1/generate-story`
+  - Documentation Swagger auto-générée (`/docs`)
+  - Support CORS configuré (JSON array format)
+  - Health check endpoint: `GET /api/v1/health`
 
-- [ ] **Authentification & Sécurité**
-  - Authentification par token (JWT)
-  - Rate limiting par token
-  - Validation des inputs (Pydantic)
-  - Logs sécurisés des requêtes
+- [x] **Dockerisation complète**
+  - Backend Dockerfile (multi-stage, Python 3.12-slim, 548MB)
+  - Frontend Dockerfile (Streamlit, Python 3.12-slim, 827MB)
+  - docker-compose.yml avec 4 services (backend, frontend, PostgreSQL, Redis)
+  - Variables d'environnement via `.env`
+  - Stack opérationnel: http://localhost:8000 (backend), http://localhost:8501 (frontend)
 
-- [ ] **Paramètres API**
-  - Input : `prompt` (str) - Thème de l'histoire
-  - Input : `model` (str, optional) - Modèle LLM (default: mistral-large-2411)
-  - Input : `model_api_key` (str, optional) - Modèle LLM API KEY (Uniquement si un model est spécifié dans le parametre 'model')
-  - Input : `output_format` (enum) - "text" ou "audio"
-  - Input : `num_chapters` (int, optional) - Nombre de chapitres
-  - Input : `voice_id` (str, optional) - ID voix TTS (si format audio)
-  - Input : `temperature` (float, optional) - Température génération
-  - Output : Histoire (JSON ou WAV selon format)
+- [x] **Configuration & Sécurité**
+  - Pydantic Settings avec validation
+  - JWT authentication structure (backend/core/security.py)
+  - Rate limiting middleware (in-memory, Redis-ready)
+  - CORS origins fixé (format JSON array)
 
-- [ ] **Séparation Frontend/Backend**
-  - Streamlit reste frontend (parfait tel quel)
-  - Streamlit consomme l'API backend
-  - Communication via HTTP REST
-  - Variables d'environnement pour URL API
+- [x] **Service Layer**
+  - StoryService orchestrant LLM + TTS + STT
+  - Métriques automatiques (tokens, cost, duration)
+  - Support output_format: text ou audio (base64)
 
-#### Response Format
-```json
-{
-  "status": "success",
-  "data": {
-    "story_id": "uuid",
-    "theme": "Un robot qui découvre les émotions",
-    "chapters": [...],
-    "output": "base64_audio" | "text_content",
-    "format": "audio" | "text",
-    "metadata": {
-      "model": "mistral-large-2411",
-      "tokens": 4521,
-      "duration": 45.2,
-      "cost": 0.0034
-    }
-  }
-}
-```
-## 🐳 Infrastructure & Déploiement
+#### 🔴 À corriger
+- [ ] Backend génère des erreurs vagues: "Failed to generate story plan"
+  - Besoin de logs détaillés
+  - Tracer l'origine exacte des erreurs (API keys? Timeout? Format?)
 
-### Docker (V0.4 - Priorité Haute)
-- [ ] **Dockerisation Backend API**
-  - Dockerfile optimisé multi-stage
-  - Image Python 3.10+ Alpine
-  - Dépendances figées (requirements.txt)
-  - Healthcheck endpoint
+#### 🔵 Reste à faire
+- [ ] **Tester le backend en profondeur**
+  - Identifier l'erreur "Failed to generate story plan"
+  - Tester génération complète avec 3+ chapitres
+  - Valider output_format: text ET audio
+  - Tester avec différentes voix TTS
 
-- [ ] **Dockerisation Frontend Streamlit**
-  - Dockerfile séparé pour Streamlit
-  - Configuration via variables d'environnement
-  - Port 8501 exposé
+- [ ] **Connecter Frontend Streamlit au Backend**
+  - Modifier Streamlit pour appeler http://backend:8000 au lieu des APIs directes
+  - Ajouter variable d'environnement BACKEND_API_URL
+  - Gérer les erreurs API côté frontend
+  - Afficher les métriques retournées par le backend
 
-- [ ] **Docker Compose**
-  - `docker-compose.yml` pour stack complète
-  - Services : backend, frontend, postgres, redis
-  - Volumes pour persistance
-  - Réseau interne pour communication
-  - Variables d'environnement centralisées
-
-- [ ] **Multi-Architecture**
-  - Support amd64 (serveurs cloud)
+- [ ] **Multi-Architecture Docker**
   - Support arm64 (Mac M1/M2, Raspberry Pi)
   - GitHub Actions pour build automatique
   - Push vers DockerHub/GHCR
@@ -128,18 +112,18 @@ Latence perçue : ~10s au lieu de ~50s (5x plus rapide!)
 
 ## 📋 Backlog (V0.6+)
 
-### V0.6 - Structure Narrative en 3 Actes
+### V0.6 - Structure Narrative des histoires
 **Objectif** : Créer une structure narrative plus cohérente
 
-- [ ] **Commencement** (3 chapitres)
-  - Introduction du personnage principal
-  - Mise en place du contexte et du monde
-  - Déclencheur de l'aventure
+- [ ] **Situation initiale** 
+  - point de départ de l'histoire qui présente l'univers, les personnages et le contexte dans lequel se déroule l'intrigue.
+  - Cette étape permet d'établir le cadre de la narration et de donner des informations nécessaires au public pour qu'il puisse comprendre la suite.
+  - La situation initiale sert à mettre en place l'équilibre du récit. Les personnages ont des objectifs, des désirs, des peurs et des conflits latents qui sont progressivement révélés au fil de l'histoire.
 
-- [ ] **Péripéties** (3-4 chapitres)
-  - Défis et obstacles
-  - Développement de l'intrigue
-  - Rebondissements
+
+- [ ] **L'élément perturbateur** 
+  - L'élément modificateur est l'événement qui perturbe l'équilibre initial de l'histoire et qui donne lieu à une action. C'est souvent un élément inattendu, qui change la donne et qui produit une situation conflictuelle.
+  - Ce critère peut prendre différentes formes, comme une rencontre fortuite, un accident, une révélation, une découverte, une trahison, un départ, un retour, un changement de situation, etc. C'est un moment crucial dans la structure narrative, car il marque le début de l'intrigue et lance l'action.
 
 - [ ] **Conclusion** (2-3 chapitres)
   - Résolution du conflit principal
@@ -222,6 +206,9 @@ Latence perçue : ~10s au lieu de ~50s (5x plus rapide!)
   - Alertes incidents (PagerDuty)
   - Métriques de performance
 
+- [ ] **Ajoute API Client**
+  - Route pour récupérer les métriques utilisateur
+
 ---
 
 ## 🐳 Infrastructure & Déploiement
@@ -246,8 +233,6 @@ Latence perçue : ~10s au lieu de ~50s (5x plus rapide!)
 - Thèmes saisonniers (Noël, Halloween, etc.)
 - Histoires interactives avec choix multiples
 - Support multi-langues (anglais, espagnol)
-- Export audio complet des histoires générées
-- Partage communautaire d'histoires
 - Mode "histoire du soir" avec timing progressif vers le sommeil
 - Génération d'illustrations par IA (DALL-E, Midjourney)
 - Personnages récurrents avec mémoire entre sessions
@@ -255,16 +240,3 @@ Latence perçue : ~10s au lieu de ~50s (5x plus rapide!)
 
 ---
 
-**Dernière mise à jour** : 25 décembre 2024
-**Version actuelle** : V0.3 (STT + TTS + Métriques complets)
-**Prochaine release** : V0.4 (Génération streaming + histoires longues)
-
-## 📊 Statistiques du Projet
-
-- **Modules Python** : 8 modules principaux
-- **Lignes de code** : ~3000+ lignes
-- **APIs intégrées** : Celeste AI (LLM), Gradium (TTS/STT)
-- **Providers LLM** : 4 (Gemini, Claude, GPT-4o, OpenAI)
-- **Voix TTS** : 4 voix françaises configurées + personnalisable
-- **Formats audio** : WAV, PCM, OPUS
-- **Interface** : Streamlit (4 onglets)
