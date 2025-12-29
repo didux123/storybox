@@ -30,6 +30,7 @@ services:
       # AI API Keys (from host .env)
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
       - GRADIUM_API_KEY=${GRADIUM_API_KEY}
+      - MISTRAL_API_KEY=${MISTRAL_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
 
@@ -41,6 +42,7 @@ services:
 
     volumes:
       - ./logs:/app/logs
+      - ./configs:/app/configs  # Mount configs for persistent prompt editing
     networks:
       - storybox-network
     depends_on:
@@ -65,6 +67,7 @@ services:
       - GRADIUM_API_KEY=${GRADIUM_API_KEY}
     volumes:
       - ./logs:/app/logs
+      - ./configs:/app/configs  # Mount configs for persistent prompt editing
     networks:
       - storybox-network
     depends_on:
