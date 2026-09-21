@@ -1,5 +1,9 @@
 # StoryBox IA
 
+> **🧪 Proof of concept.** Projet personnel exploratoire, publié pour partager
+> l'approche technique. Pas de support, pas de garantie de maintenance ni de
+> compatibilité ascendante — ce n'est pas un produit fini.
+
 > Générateur d'histoires interactives par IA avec narration vocale
 
 [![Version](https://img.shields.io/badge/version-0.3.0-blue.svg)](https://github.com/didux123/storybox)
